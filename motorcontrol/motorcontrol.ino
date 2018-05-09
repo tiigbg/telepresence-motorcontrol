@@ -13,6 +13,7 @@ MeEncoderNew motor4(0x0a, SLOT2); // back left
 
 int moveSpeed = DEFAULTSPEED,motor1speed=0,motor2speed=0,motor3speed=0,motor4speed=0;
 String currentDirection = "stop";
+boolean motorsEnabled = false;
 unsigned long lastCommandTime;
 
 // This array is to set motor's direction.
@@ -42,28 +43,61 @@ void setup()
 
 void loop()
 {
+  
   while(Serial.available() > 0)
   {
     //String serialInput = Serial.readString();
     int incomingByte = Serial.read();
-    Serial.println("Received:");
+    Serial.println("---");
+    Serial.print("Received:");
     Serial.println(incomingByte, DEC);
     lastCommandTime = millis();
-    if(incomingByte == 119) // w
+    if(incomingByte == 112) // p
     {
-      forward();
+      /*int bufferLength = 20;
+      byte buff[bufferLength];
+      int nrOfBytes = Serial.readBytesUntil('p', buff, bufferLength);
+      Serial.println("Received buffer:");
+      for(int i = 0; i<bufferLength; i++)
+      {
+        Serial.print(" ");
+        Serial.print(buff[i]);
+      }
+      Serial.println();
+      */
+      String incomingString = "";
+      while(Serial.available() > 0)
+      {
+        incomingByte = Serial.read();
+        incomingString += (char)incomingByte;
+        delay(1);
+      }
+      Serial.println(incomingString);
+      
+      //incomingString.substring(0, incomingString.indexOf(';'));
+      
+      calculateSpeeds(0, 1, 0);
+      
+    }
+    else if(incomingByte == 119) // w
+    {
+      calculateSpeeds(0, 1, 0);
+      //forward();
     }
     else if(incomingByte == 115) // s
     {
-      backward();
+      calculateSpeeds(0, -1, 0);
+      //backward();
     }
     else if(incomingByte == 100) // d
     {
-      right();
+      calculateSpeeds(0, 0, -1);
+      //right();
     }
     else if(incomingByte == 97) // a
     {
-      left();
+      calculateSpeeds(0, 0, 1);
+      //left();
     }
     else if(incomingByte == 101) // e
     {
@@ -83,27 +117,45 @@ void loop()
     }
     else if(incomingByte == 116) // t
     {
-      strafeRightUp();
+      calculateSpeeds(PI*1.75, 1, 0);
+      //strafeRightUp();
     }
     else if(incomingByte == 114) // r
     {
-      strafeLeftUp();
+      calculateSpeeds(PI*0.25, 1, 0);
+      //strafeLeftUp();
     }
     else if(incomingByte == 103) // g
     {
-      strafeRight();
+      calculateSpeeds(PI*1.5, 1, 0);
+      //strafeRight();
     }
     else if(incomingByte == 102) // f
     {
-      strafeLeft();
+      calculateSpeeds(PI*0.5, 1, 0);
+      //strafeLeft();
     }
     else if(incomingByte == 98) // b
     {
-      strafeRightDown();
+      calculateSpeeds(PI*1.25, 1, 0);
+      //strafeRightDown();
     }
     else if(incomingByte == 118) // v
     {
-      strafeLeftDown();
+      calculateSpeeds(PI*0.75, 1, 0);
+      //strafeLeftDown();
+    }
+    else if(incomingByte == 49) // 1
+    {
+      motorsEnabled = false;
+      Serial.print("motorsEnabled:");
+      Serial.println(motorsEnabled);
+    }
+    else if(incomingByte == 50) // 2
+    {
+      motorsEnabled = true;
+      Serial.print("motorsEnabled:");
+      Serial.println(motorsEnabled);
     }
     else
     {
@@ -294,5 +346,61 @@ void stopAll()
   motor2.runSpeed(0,1);
   motor3.runSpeed(0,1);
   motor4.runSpeed(0,1);
+}
+
+// angle to translate at: [0, 2pi]
+// speed: [-1,1]
+// rotation: [-1,1]
+void calculateSpeeds(float myAngle, float mySpeed, float myRotation)
+{
+  float motor1multiplier = mySpeed * sin(myAngle + PI / 4.0) + myRotation;
+  float motor2multiplier = mySpeed * cos(myAngle + PI / 4.0) - myRotation;
+  float motor3multiplier = mySpeed * cos(myAngle + PI / 4.0) + myRotation;
+  float motor4multiplier = mySpeed * sin(myAngle + PI / 4.0) - myRotation;
+
+  // scale all multipliers based on the biggest, to keep them inside the [1,-1] range
+  float maxMultiplier = max(fabs(motor1multiplier),
+                         max(fabs(motor2multiplier),
+                          max(fabs(motor3multiplier),
+                           fabs(motor4multiplier))));
+  if(maxMultiplier != 0)
+  {
+    Serial.print("Scaling multipliers with:");
+    Serial.println(maxMultiplier);
+    motor1multiplier = motor1multiplier / maxMultiplier;
+    motor2multiplier = motor2multiplier / maxMultiplier;
+    motor3multiplier = motor3multiplier / maxMultiplier;
+    motor4multiplier = motor4multiplier / maxMultiplier;
+  }
+  
+  motor1speed = directionAdjustment[0] * moveSpeed * motor1multiplier;
+  motor2speed = directionAdjustment[1] * moveSpeed * motor2multiplier;
+  motor3speed = directionAdjustment[2] * moveSpeed * motor3multiplier;
+  motor4speed = directionAdjustment[3] * moveSpeed * motor4multiplier;
+
+  Serial.print("m1m:");
+  Serial.print(motor1multiplier);
+  Serial.print(" m2m:");
+  Serial.print(motor2multiplier);
+  Serial.print(" m3m:");
+  Serial.print(motor3multiplier);
+  Serial.print(" m4m:");
+  Serial.println(motor4multiplier);
+  
+  Serial.print("m1s:");
+  Serial.print(motor1speed);
+  Serial.print(" m2s:");
+  Serial.print(motor2speed);
+  Serial.print(" m3s:");
+  Serial.print(motor3speed);
+  Serial.print(" m4s:");
+  Serial.println(motor4speed);
+  if(motorsEnabled)
+  {
+    motor1.runSpeed(motor1speed,0);
+    motor2.runSpeed(motor2speed,0);
+    motor3.runSpeed(motor3speed,0);
+    motor4.runSpeed(motor4speed,0);
+  }
 }
 
