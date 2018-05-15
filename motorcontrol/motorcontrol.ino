@@ -35,8 +35,6 @@ void setup()
   motor4.runSpeed(0,1);
   Serial.begin(115200);
   Serial.println("Makeblock started ok");
-
-
 }
 
 
@@ -44,156 +42,70 @@ void setup()
 void loop()
 {
   
-  while(Serial.available() > 0)
+  if(Serial.available() > 0)
   {
-    //String serialInput = Serial.readString();
-    int incomingByte = Serial.read();
-    Serial.println("---");
-    Serial.print("Received:");
-    Serial.println(incomingByte, DEC);
+    String incomingString = "";
+    while(Serial.available() > 0)
+    {
+      incomingString += (char)Serial.read();
+      delay(1);
+    }
+    Serial.println(incomingString);
+
+    int beginCharIndex = incomingString.indexOf('<');
+    int endCharIndex = incomingString.indexOf('>');
+    if(beginCharIndex == -1 || endCharIndex == -1 || beginCharIndex >= endCharIndex)
+    {
+      Serial.print("<!> Ignored incoming serial due to wrong formatting of start and end characters. beginCharIndex=");
+      Serial.print(beginCharIndex);
+      Serial.print(" endCharIndex=");
+      Serial.println(endCharIndex);
+      return;
+    }
+    // trim off begin and end characters
+    incomingString = incomingString.substring(beginCharIndex+1, endCharIndex);
+    int firstBreakCharIndex = incomingString.indexOf(';');
+    if(firstBreakCharIndex == -1)
+    {
+      Serial.println("<!> Did not find first break character (;).");
+      return;
+    }
+    int secondBreakCharIndex = incomingString.indexOf(';', firstBreakCharIndex+1);
+    if(secondBreakCharIndex == -1)
+    {
+      Serial.println("<!> Did not find second break character (;).");
+      return;
+    }
+    String firstValue = incomingString.substring(0, firstBreakCharIndex);
+    String secondValue = incomingString.substring(firstBreakCharIndex+1, secondBreakCharIndex);
+    String thirdValue = incomingString.substring(secondBreakCharIndex+1);
+
+    Serial.print("Parsed: ");
+    Serial.print(firstValue);
+    Serial.print(" // ");
+    Serial.print(secondValue);
+    Serial.print(" // ");
+    Serial.println(thirdValue);
+
+    float newDirection = 0;//float(firstValue);
+    float newSpeed = 0;//float(firstValue);
+    float newRotation = 0;//float(firstValue);
+
+    // make sure arguments are within the boundaries
+    newDirection = fmod((fmod(newDirection,float(2.0*PI)) + 2.0*PI),float(2.0*PI));
+    newSpeed = max(min(newSpeed, 1), -1);
+    newRotation = max(min(newRotation, 1), -1);
+
+    Serial.print("Floats: ");
+    Serial.print(newDirection);
+    Serial.print(" // ");
+    Serial.print(newSpeed);
+    Serial.print(" // ");
+    Serial.println(newRotation);
+
     lastCommandTime = millis();
-    if(incomingByte == 112) // p
-    {
-      /*int bufferLength = 20;
-      byte buff[bufferLength];
-      int nrOfBytes = Serial.readBytesUntil('p', buff, bufferLength);
-      Serial.println("Received buffer:");
-      for(int i = 0; i<bufferLength; i++)
-      {
-        Serial.print(" ");
-        Serial.print(buff[i]);
-      }
-      Serial.println();
-      */
-      String incomingString = "";
-      while(Serial.available() > 0)
-      {
-        incomingByte = Serial.read();
-        incomingString += (char)incomingByte;
-        delay(1);
-      }
-      Serial.println(incomingString);
-
-      int beginCharIndex = incomingString.indexOf('<');
-      int endCharIndex = incomingString.indexOf('>');
-      if(beginCharIndex == -1 || endCharIndex == -1 || beginCharIndex >= endCharIndex)
-      {
-        Serial.print("<!> Ignored incoming serial due to wrong formatting of start and end characters. beginCharIndex=");
-        Serial.print(beginCharIndex);
-        Serial.print(" endCharIndex=");
-        Serial.println(endCharIndex);
-        return;
-      }
-      // trim off begin and end characters
-      incomingString = incomingString.substring(beginCharIndex+1, endCharIndex);
-      int firstBreakCharIndex = incomingString.indexOf(';');
-      if(firstBreakCharIndex == -1)
-      {
-        Serial.println("<!> Did not find first break character (;).");
-        return;
-      }
-      int secondBreakCharIndex = incomingString.indexOf(';', firstBreakCharIndex+1);
-      if(secondBreakCharIndex == -1)
-      {
-        Serial.println("<!> Did not find second break character (;).");
-        return;
-      }
-      String firstValue = incomingString.substring(0, firstBreakCharIndex);
-      String secondValue = incomingString.substring(firstBreakCharIndex+1, secondBreakCharIndex);
-      String thirdValue = incomingString.substring(secondBreakCharIndex+1);
-
-      Serial.println(firstValue);
-      Serial.println(secondValue);
-      Serial.println(thirdValue);
-      
-      
-      
-      calculateSpeeds(0, 1, 0);
-      
-    }
-    else if(incomingByte == 119) // w
-    {
-      calculateSpeeds(0, 1, 0);
-      //forward();
-    }
-    else if(incomingByte == 115) // s
-    {
-      calculateSpeeds(0, -1, 0);
-      //backward();
-    }
-    else if(incomingByte == 100) // d
-    {
-      calculateSpeeds(0, 0, 1);
-      //right();
-    }
-    else if(incomingByte == 97) // a
-    {
-      calculateSpeeds(0, 0, -1);
-      //left();
-    }
-    else if(incomingByte == 101) // e
-    {
-      //rightUp();
-    }
-    else if(incomingByte == 113) // q
-    {
-      //leftUp();
-    }
-    else if(incomingByte == 99) // c
-    {
-      //rightDown();
-    }
-    else if(incomingByte == 122) // z
-    {
-      //leftDown();
-    }
-    else if(incomingByte == 116) // t
-    {
-      calculateSpeeds(PI*1.75, 1, 0);
-      //strafeRightUp();
-    }
-    else if(incomingByte == 114) // r
-    {
-      calculateSpeeds(PI*0.25, 1, 0);
-      //strafeLeftUp();
-    }
-    else if(incomingByte == 103) // g
-    {
-      calculateSpeeds(PI*1.5, 1, 0);
-      //strafeRight();
-    }
-    else if(incomingByte == 102) // f
-    {
-      calculateSpeeds(PI*0.5, 1, 0);
-      //strafeLeft();
-    }
-    else if(incomingByte == 98) // b
-    {
-      calculateSpeeds(PI*1.25, 1, 0);
-      //strafeRightDown();
-    }
-    else if(incomingByte == 118) // v
-    {
-      calculateSpeeds(PI*0.75, 1, 0);
-      //strafeLeftDown();
-    }
-    else if(incomingByte == 49) // 1
-    {
-      motorsEnabled = false;
-      Serial.print("motorsEnabled:");
-      Serial.println(motorsEnabled);
-    }
-    else if(incomingByte == 50) // 2
-    {
-      motorsEnabled = true;
-      Serial.print("motorsEnabled:");
-      Serial.println(motorsEnabled);
-    }
-    else
-    {
-      stopAll();
-    }
-    Serial.println(currentDirection);
+    
+    calculateSpeeds(newDirection, newSpeed, newRotation);
   }
 
   if(millis() > lastCommandTime + COMMAND_TIMEOUT)
