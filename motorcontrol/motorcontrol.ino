@@ -91,12 +91,12 @@ void loop()
     }
     else if(incomingByte == 100) // d
     {
-      calculateSpeeds(0, 0, -1);
+      calculateSpeeds(0, 0, 1);
       //right();
     }
     else if(incomingByte == 97) // a
     {
-      calculateSpeeds(0, 0, 1);
+      calculateSpeeds(0, 0, -1);
       //left();
     }
     else if(incomingByte == 101) // e
@@ -353,6 +353,8 @@ void stopAll()
 // rotation: [-1,1]
 void calculateSpeeds(float myAngle, float mySpeed, float myRotation)
 {
+  // flipping direction on the rotation, because we want right turn to be 1 and left turn -1
+  myRotation = myRotation * -1;
   float motor1multiplier = mySpeed * sin(myAngle + PI / 4.0) + myRotation;
   float motor2multiplier = mySpeed * cos(myAngle + PI / 4.0) - myRotation;
   float motor3multiplier = mySpeed * cos(myAngle + PI / 4.0) + myRotation;
