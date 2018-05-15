@@ -73,8 +73,40 @@ void loop()
         delay(1);
       }
       Serial.println(incomingString);
+
+      int beginCharIndex = incomingString.indexOf('<');
+      int endCharIndex = incomingString.indexOf('>');
+      if(beginCharIndex == -1 || endCharIndex == -1 || beginCharIndex >= endCharIndex)
+      {
+        Serial.print("<!> Ignored incoming serial due to wrong formatting of start and end characters. beginCharIndex=");
+        Serial.print(beginCharIndex);
+        Serial.print(" endCharIndex=");
+        Serial.println(endCharIndex);
+        return;
+      }
+      // trim off begin and end characters
+      incomingString = incomingString.substring(beginCharIndex+1, endCharIndex);
+      int firstBreakCharIndex = incomingString.indexOf(';');
+      if(firstBreakCharIndex == -1)
+      {
+        Serial.println("<!> Did not find first break character (;).");
+        return;
+      }
+      int secondBreakCharIndex = incomingString.indexOf(';', firstBreakCharIndex+1);
+      if(secondBreakCharIndex == -1)
+      {
+        Serial.println("<!> Did not find second break character (;).");
+        return;
+      }
+      String firstValue = incomingString.substring(0, firstBreakCharIndex);
+      String secondValue = incomingString.substring(firstBreakCharIndex+1, secondBreakCharIndex);
+      String thirdValue = incomingString.substring(secondBreakCharIndex+1);
+
+      Serial.println(firstValue);
+      Serial.println(secondValue);
+      Serial.println(thirdValue);
       
-      //incomingString.substring(0, incomingString.indexOf(';'));
+      
       
       calculateSpeeds(0, 1, 0);
       
