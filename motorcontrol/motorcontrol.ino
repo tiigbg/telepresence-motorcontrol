@@ -101,19 +101,19 @@ void loop()
     }
     else if(incomingByte == 101) // e
     {
-      rightUp();
+      //rightUp();
     }
     else if(incomingByte == 113) // q
     {
-      leftUp();
+      //leftUp();
     }
     else if(incomingByte == 99) // c
     {
-      rightDown();
+      //rightDown();
     }
     else if(incomingByte == 122) // z
     {
-      leftDown();
+      //leftDown();
     }
     else if(incomingByte == 116) // t
     {
@@ -178,7 +178,7 @@ void adjustDirections()
   motor4speed = moveSpeed*directionAdjustment[3];
 }
 
-
+/*
 void forward()
 {
   currentDirection = "forward";
@@ -322,7 +322,7 @@ void strafeLeftDown()
   motor3.runSpeed(-motor3speed,0);
   //motor4.runSpeed(motor4speed/2,0);
 }
-
+*/
 
 
 void speedUp()
