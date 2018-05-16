@@ -33,7 +33,7 @@ void setup()
   motor2.runSpeed(0,1);
   motor3.runSpeed(0,1);
   motor4.runSpeed(0,1);
-  Serial.begin(115200);
+  Serial.begin(9600);
   Serial.println("Makeblock started ok");
 }
 
