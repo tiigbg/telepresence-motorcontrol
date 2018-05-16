@@ -87,9 +87,16 @@ void loop()
     Serial.print(" // ");
     Serial.println(thirdValue);
 
-    float newDirection = 0;//float(firstValue);
-    float newSpeed = 0;//float(firstValue);
-    float newRotation = 0;//float(firstValue);
+    float newDirection = firstValue.toFloat();
+    float newSpeed = secondValue.toFloat();
+    float newRotation = thirdValue.toFloat();
+
+    Serial.print("Floats: ");
+    Serial.print(newDirection);
+    Serial.print(" // ");
+    Serial.print(newSpeed);
+    Serial.print(" // ");
+    Serial.println(newRotation);
 
     // make sure arguments are within the boundaries
     newDirection = fmod((fmod(newDirection,float(2.0*PI)) + 2.0*PI),float(2.0*PI));
