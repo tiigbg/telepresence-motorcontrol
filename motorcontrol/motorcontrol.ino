@@ -13,7 +13,7 @@ MeEncoderNew motor4(0x0a, SLOT2); // back left
 
 int moveSpeed = DEFAULTSPEED,motor1speed=0,motor2speed=0,motor3speed=0,motor4speed=0;
 String currentDirection = "stop";
-boolean motorsEnabled = false;
+boolean motorsEnabled = true;
 unsigned long lastCommandTime;
 
 // This array is to set motor's direction.
