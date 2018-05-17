@@ -8,8 +8,8 @@ MeEncoderNew motor3(0x0a, SLOT1); // back right
 MeEncoderNew motor4(0x0a, SLOT2); // back left
 
 #define MAXSPEED 150
-#define DEFAULTSPEED 100
-#define COMMAND_TIMEOUT 150
+#define DEFAULTSPEED 70
+#define COMMAND_TIMEOUT 300
 
 int moveSpeed = DEFAULTSPEED,motor1speed=0,motor2speed=0,motor3speed=0,motor4speed=0;
 String currentDirection = "stop";
@@ -19,6 +19,21 @@ unsigned long lastCommandTime;
 // This array is to set motor's direction.
 // Change the symbol to change the motor's direction
 signed char directionAdjustment[4]={1,-1,1,-1};
+
+// Servo's
+
+MePort port(PORT_3);
+Servo servo1;  // create servo object to control a servo 
+Servo servo2;  // create servo object to control another servo
+int16_t servo1pin =  port.pin1();//attaches the servo on PORT_3 SLOT1 to the servo object
+int16_t servo2pin =  port.pin2();//attaches the servo on PORT_3 SLOT2 to the servo object
+
+int servo1Center = 90;
+int servo1Min = 20;
+int servo1Max = 160;
+int servo2Center = 90;
+int servo2Min = 20;
+int servo2Max = 160;
 
 void setup()
 {
@@ -33,7 +48,14 @@ void setup()
   motor2.runSpeed(0,1);
   motor3.runSpeed(0,1);
   motor4.runSpeed(0,1);
-  Serial.begin(9600);
+
+  servo1.attach(servo1pin);  // attaches the servo on servopin1
+  servo2.attach(servo2pin);  // attaches the servo on servopin2
+
+  servo1.write(servo1Center);
+  servo2.write(servo2Center);
+  
+  Serial.begin(115200);
   Serial.println("Makeblock started ok");
 }
 
@@ -50,6 +72,7 @@ void loop()
       incomingString += (char)Serial.read();
       delay(1);
     }
+    Serial.print("Received string:");
     Serial.println(incomingString);
 
     int beginCharIndex = incomingString.indexOf('<');
@@ -64,6 +87,33 @@ void loop()
     }
     // trim off begin and end characters
     incomingString = incomingString.substring(beginCharIndex+1, endCharIndex);
+
+    if(incomingString.substring(0,1) == "s")
+    {
+      Serial.println("Servo time!");
+      incomingString = incomingString.substring(1);
+      int firstBreakCharIndex = incomingString.indexOf(';');
+      if(firstBreakCharIndex == -1)
+      {
+        Serial.println("<!> Did not find first break character (;).");
+        return;
+      }
+      int servo1Value = incomingString.substring(0, firstBreakCharIndex).toInt();
+      int servo2Value = incomingString.substring(firstBreakCharIndex+1).toInt();
+
+      servo1Value = min(max(servo1Value, servo1Min), servo1Max);
+      servo2Value = min(max(servo2Value, servo2Min), servo2Max);
+      Serial.print(servo1Value);
+      Serial.print(" ");
+      Serial.println(servo2Value);
+      
+      servo1.write(servo1Value);
+      servo2.write(servo2Value);
+      
+      
+      return;
+    }
+    
     int firstBreakCharIndex = incomingString.indexOf(';');
     if(firstBreakCharIndex == -1)
     {
