@@ -8,7 +8,7 @@ MeEncoderNew motor3(0x0a, SLOT1); // back right
 MeEncoderNew motor4(0x0a, SLOT2); // back left
 
 #define MAXSPEED 150
-#define DEFAULTSPEED 70
+#define DEFAULTSPEED 50
 #define COMMAND_TIMEOUT 300
 
 int moveSpeed = DEFAULTSPEED,motor1speed=0,motor2speed=0,motor3speed=0,motor4speed=0;
