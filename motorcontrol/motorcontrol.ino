@@ -12,7 +12,6 @@ MeEncoderNew motor4(0x0a, SLOT2); // back left
 #define COMMAND_TIMEOUT 300
 
 int moveSpeed = DEFAULTSPEED,motor1speed=0,motor2speed=0,motor3speed=0,motor4speed=0;
-String currentDirection = "stop";
 boolean motorsEnabled = true;
 unsigned long lastCommandTime;
 
@@ -182,7 +181,6 @@ void adjustDirections()
 /*
 void forward()
 {
-  currentDirection = "forward";
   motor1.runSpeed(motor1speed,0);
   motor2.runSpeed(motor2speed,0);
   motor3.runSpeed(motor3speed,0);
@@ -191,7 +189,6 @@ void forward()
 
  void backward()
 {
-  currentDirection = "backward";
   motor1.runSpeed(-motor1speed,0);
   motor2.runSpeed(-motor2speed,0);
   motor3.runSpeed(-motor3speed,0);
@@ -200,7 +197,6 @@ void forward()
 
  void right()
 {
-  currentDirection = "right";
   motor1.runSpeed(-motor1speed,0);
   motor2.runSpeed(motor2speed,0);
   motor3.runSpeed(-motor3speed,0);
@@ -217,7 +213,6 @@ void forward()
  
 void leftUp()
 {
-  currentDirection = "leftUp";
   motor1.runSpeed(motor1speed,0);
   motor2.runSpeed(0,0);
   motor3.runSpeed(motor3speed,0);
@@ -226,7 +221,6 @@ void leftUp()
 
 void leftDown()
 {
-  currentDirection = "leftDown";
   motor1.runSpeed(0,0);
   motor2.runSpeed(-motor2speed,0);
   motor3.runSpeed(0,0);
@@ -236,7 +230,6 @@ void leftDown()
 
 void rightUp()
 {
-  currentDirection = "rightUp";
   motor1.runSpeed(0,0);
   motor2.runSpeed(motor2speed,0);
   motor3.runSpeed(0,0);
@@ -245,7 +238,6 @@ void rightUp()
 
 void rightDown()
 {
-  currentDirection = "rightDown";
   motor1.runSpeed(-motor1speed,0);
   motor2.runSpeed(0,0);
   motor3.runSpeed(-motor3speed,0);
@@ -254,7 +246,6 @@ void rightDown()
 
 void turnRight()
 {
-  currentDirection = "turnRight";
   motor1.runSpeed(-motor1speed,0);
   motor2.runSpeed(motor2speed,0);
   motor3.runSpeed(motor3speed,0);
@@ -263,7 +254,6 @@ void turnRight()
 
 void turnLeft()
 {
-  currentDirection = "turnLeft";
   motor1.runSpeed(motor1speed,0);
   motor2.runSpeed(-motor2speed,0);
   motor3.runSpeed(-motor3speed,0);
@@ -272,7 +262,6 @@ void turnLeft()
 
 void strafeRight()
 {
-  currentDirection = "strafeRight";
   motor1.runSpeed(-motor1speed,0);
   motor2.runSpeed(motor2speed,0);
   motor3.runSpeed(motor3speed,0);
@@ -281,7 +270,6 @@ void strafeRight()
 
 void strafeLeft()
 {
-  currentDirection = "strafeLeft";
   motor1.runSpeed(motor1speed,0);
   motor2.runSpeed(-motor2speed,0);
   motor3.runSpeed(-motor3speed,0);
@@ -290,7 +278,6 @@ void strafeLeft()
 
 void strafeRightUp()
 {
-  currentDirection = "strafeRightUp";
   //motor1.runSpeed(-motor1speed/2,0);
   motor2.runSpeed(motor2speed,0);
   motor3.runSpeed(motor3speed,0);
@@ -299,7 +286,6 @@ void strafeRightUp()
 
 void strafeRightDown()
 {
-  currentDirection = "strafeRightDown";
   motor1.runSpeed(-motor1speed,0);
   //motor2.runSpeed(motor2speed/2,0);
   //motor3.runSpeed(motor3speed/2,0);
@@ -308,7 +294,6 @@ void strafeRightDown()
 
 void strafeLeftUp()
 {
-  currentDirection = "strafeLeft";
   motor1.runSpeed(motor1speed,0);
   //motor2.runSpeed(-motor2speed/2,0);
   //motor3.runSpeed(-motor3speed/2,0);
@@ -317,7 +302,6 @@ void strafeLeftUp()
 
 void strafeLeftDown()
 {
-  //currentDirection = "strafeLeft";
   motor1.runSpeed(motor1speed/2,0);
   motor2.runSpeed(-motor2speed,0);
   motor3.runSpeed(-motor3speed,0);
@@ -342,7 +326,6 @@ void speedDown()
 }
 void stopAll()
 {
-  currentDirection = "stop";
   motor1.runSpeed(0,1);
   motor2.runSpeed(0,1);
   motor3.runSpeed(0,1);
