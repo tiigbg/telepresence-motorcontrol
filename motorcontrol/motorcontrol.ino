@@ -89,7 +89,7 @@ void loop()
 
     if(incomingString.substring(0,1) == "s")
     {
-      Serial.println("Servo time!");
+      Serial.println("This is a servo only command.");
       incomingString = incomingString.substring(1);
       int firstBreakCharIndex = incomingString.indexOf(';');
       if(firstBreakCharIndex == -1)
@@ -372,22 +372,22 @@ void calculateSpeeds(float myAngle, float mySpeed, float myRotation)
   motor3speed = directionAdjustment[2] * moveSpeed * motor3multiplier;
   motor4speed = directionAdjustment[3] * moveSpeed * motor4multiplier;
 
-  Serial.print("m1m:");
+  Serial.print("multipliers 1:");
   Serial.print(motor1multiplier);
-  Serial.print(" m2m:");
+  Serial.print(" 2:");
   Serial.print(motor2multiplier);
-  Serial.print(" m3m:");
+  Serial.print(" 3:");
   Serial.print(motor3multiplier);
-  Serial.print(" m4m:");
+  Serial.print(" 4:");
   Serial.println(motor4multiplier);
   
-  Serial.print("m1s:");
+  Serial.print("speeds 1:");
   Serial.print(motor1speed);
-  Serial.print(" m2s:");
+  Serial.print(" 2:");
   Serial.print(motor2speed);
-  Serial.print(" m3s:");
+  Serial.print(" 3:");
   Serial.print(motor3speed);
-  Serial.print(" m4s:");
+  Serial.print(" 4:");
   Serial.println(motor4speed);
   if(motorsEnabled)
   {
@@ -395,6 +395,10 @@ void calculateSpeeds(float myAngle, float mySpeed, float myRotation)
     motor2.runSpeed(motor2speed,0);
     motor3.runSpeed(motor3speed,0);
     motor4.runSpeed(motor4speed,0);
+  }
+  else
+  {
+    Serial.println("Motors are disabled.");
   }
 }
 
