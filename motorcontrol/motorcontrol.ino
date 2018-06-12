@@ -170,6 +170,31 @@ void loop()
   }
 }
 
+String* parseTextAsValues(String incomingString)
+{
+
+  String values[5] = {};
+  int firstBreakCharIndex = -1;
+  int valuesIndex = 0;
+  while(incomingString.indexOf(';') != -1)
+  {
+    int secondBreakCharIndex = incomingString.indexOf(';', firstBreakCharIndex+1);
+
+    values[valuesIndex] = incomingString.substring(firstBreakCharIndex+1, secondBreakCharIndex);
+    firstBreakCharIndex = secondBreakCharIndex;
+    valuesIndex++;
+  }
+  values[valuesIndex] = incomingString.substring(firstBreakCharIndex+1);
+  valuesIndex++;
+  Serial.println("Found "+String(valuesIndex)+" values.");
+
+  String returnValues[valuesIndex];
+  for(int i=0; i<valuesIndex; i++){
+      returnValues[i] = values[i];
+  }
+  return values;
+}
+
 void adjustDirections()
 {
   motor1speed = moveSpeed*directionAdjustment[0];
