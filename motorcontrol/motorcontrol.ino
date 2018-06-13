@@ -42,7 +42,7 @@ void setup()
   motor3.begin();
   //  motor4.begin();
   delay(10);
-  adjustDirections();
+  //adjustDirections();
   motor1.runSpeed(0,1);
   motor2.runSpeed(0,1);
   motor3.runSpeed(0,1);
@@ -397,7 +397,7 @@ void calculateSpeeds(float myAngle, float mySpeed, float myRotation)
   motor3speed = directionAdjustment[2] * moveSpeed * motor3multiplier;
   motor4speed = directionAdjustment[3] * moveSpeed * motor4multiplier;
 
-  Serial.print("multipliers 1:");
+  Serial.print("multipliers   1:");
   Serial.print(motor1multiplier);
   Serial.print(" 2:");
   Serial.print(motor2multiplier);
@@ -406,7 +406,7 @@ void calculateSpeeds(float myAngle, float mySpeed, float myRotation)
   Serial.print(" 4:");
   Serial.println(motor4multiplier);
   
-  Serial.print("speeds 1:");
+  Serial.print("speeds        1:");
   Serial.print(motor1speed);
   Serial.print(" 2:");
   Serial.print(motor2speed);
