@@ -42,11 +42,7 @@ void setup()
   motor3.begin();
   //  motor4.begin();
   delay(10);
-  //adjustDirections();
-  motor1.runSpeed(0,1);
-  motor2.runSpeed(0,1);
-  motor3.runSpeed(0,1);
-  motor4.runSpeed(0,1);
+  stopAll();
 
   servo1.attach(servo1pin);  // attaches the servo on servopin1
   servo2.attach(servo2pin);  // attaches the servo on servopin2
@@ -112,6 +108,19 @@ void loop()
       
       return;
     }
+    else if(incomingString.substring(0,1) == "r")
+    {
+      if(incomingString.length() >= 2 && incomingString.substring(1,2) == "0")
+      {
+        Serial.println("Enabled motors");
+        motorsEnabled = true;
+        stopAll();
+        return;
+      }
+      Serial.println("Disabled motors");
+      disableMotors();
+      return;
+    }
     
     int firstBreakCharIndex = incomingString.indexOf(';');
     if(firstBreakCharIndex == -1)
@@ -164,7 +173,7 @@ void loop()
     calculateSpeeds(newDirection, newSpeed, newRotation);
   }
 
-  if(millis() > lastCommandTime + COMMAND_TIMEOUT)
+  if(motorsEnabled && millis() > lastCommandTime + COMMAND_TIMEOUT)
   {
     stopAll();
   }
@@ -351,6 +360,15 @@ void speedDown()
 }
 void stopAll()
 {
+  motor1.runSpeed(0,0);
+  motor2.runSpeed(0,0);
+  motor3.runSpeed(0,0);
+  motor4.runSpeed(0,0);
+}
+
+void disableMotors()
+{
+  motorsEnabled = false;
   motor1.runSpeed(0,1);
   motor2.runSpeed(0,1);
   motor3.runSpeed(0,1);
