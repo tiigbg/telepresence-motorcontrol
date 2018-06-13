@@ -372,6 +372,9 @@ void calculateSpeeds(float myAngle, float mySpeed, float myRotation)
 {
   // flipping direction on the rotation, because we want right turn to be 1 and left turn -1
   myRotation = myRotation * -1;
+  // TODO FIXME There seems to be some kind of rounding issue where sin and cos don't return the same value 
+  // when they should (for example when driving straight forward, all motors should get equal, now they
+  // differ with 1)
   float motor1multiplier = mySpeed * sin(myAngle + PI / 4.0) + myRotation;
   float motor2multiplier = mySpeed * cos(myAngle + PI / 4.0) - myRotation;
   float motor3multiplier = mySpeed * cos(myAngle + PI / 4.0) + myRotation;
