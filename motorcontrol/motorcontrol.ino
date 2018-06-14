@@ -405,7 +405,7 @@ void calculateSpeeds(float myAngle, float mySpeed, float myRotation)
                          max(fabs(motor2multiplier),
                           max(fabs(motor3multiplier),
                            fabs(motor4multiplier))));
-  if(maxMultiplier != 0)
+  if(maxMultiplier != 0 && maxMultiplier > 1)
   {
     // Serial.print("Scaling multipliers with:");
     // Serial.println(maxMultiplier);
