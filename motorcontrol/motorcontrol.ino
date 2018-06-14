@@ -138,12 +138,14 @@ void loop()
     String secondValue = incomingString.substring(firstBreakCharIndex+1, secondBreakCharIndex);
     String thirdValue = incomingString.substring(secondBreakCharIndex+1);
 
+    /*
     Serial.print("Parsed: ");
     Serial.print(firstValue);
     Serial.print(" // ");
     Serial.print(secondValue);
     Serial.print(" // ");
     Serial.println(thirdValue);
+    */
 
     float newDirection = firstValue.toFloat();
     float newSpeed = secondValue.toFloat();
@@ -407,6 +409,8 @@ void calculateSpeeds(float myAngle, float mySpeed, float myRotation)
   {
     Serial.print("Scaling multipliers with:");
     Serial.println(maxMultiplier);
+    // Serial.print("Scaling multipliers with:");
+    // Serial.println(maxMultiplier);
     motor1multiplier = motor1multiplier / maxMultiplier;
     motor2multiplier = motor2multiplier / maxMultiplier;
     motor3multiplier = motor3multiplier / maxMultiplier;
@@ -418,23 +422,23 @@ void calculateSpeeds(float myAngle, float mySpeed, float myRotation)
   motor3speed = directionAdjustment[2] * moveSpeed * motor3multiplier;
   motor4speed = directionAdjustment[3] * moveSpeed * motor4multiplier;
 
-  Serial.print("multipliers   1:");
-  Serial.print(motor1multiplier);
-  Serial.print(" 2:");
-  Serial.print(motor2multiplier);
-  Serial.print(" 3:");
-  Serial.print(motor3multiplier);
-  Serial.print(" 4:");
-  Serial.println(motor4multiplier);
+  // Serial.print("multipliers   1:");
+  // Serial.print(motor1multiplier);
+  // Serial.print(" 2:");
+  // Serial.print(motor2multiplier);
+  // Serial.print(" 3:");
+  // Serial.print(motor3multiplier);
+  // Serial.print(" 4:");
+  // Serial.println(motor4multiplier);
   
-  Serial.print("speeds        1:");
-  Serial.print(motor1speed);
-  Serial.print(" 2:");
-  Serial.print(motor2speed);
-  Serial.print(" 3:");
-  Serial.print(motor3speed);
-  Serial.print(" 4:");
-  Serial.println(motor4speed);
+  // Serial.print("speeds        1:");
+  // Serial.print(motor1speed);
+  // Serial.print(" 2:");
+  // Serial.print(motor2speed);
+  // Serial.print(" 3:");
+  // Serial.print(motor3speed);
+  // Serial.print(" 4:");
+  // Serial.println(motor4speed);
   if(motorsEnabled)
   {
     motor1.runSpeed(motor1speed,0);
