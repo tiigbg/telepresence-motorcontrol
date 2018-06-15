@@ -1,5 +1,7 @@
 # telepresence-motorcontrol
 
+Documentation about Orion board
+http://learn.makeblock.com/en/makeblock-orion/
 
 // angle to translate at: [0, 2pi]
 //    PI*1.5 = right direction
