@@ -348,14 +348,14 @@ void strafeLeftDown()
 
 void speedUp()
 {
-  moveSpeed +=2;
+  moveSpeed +=1;
   if(moveSpeed>MAXSPEED)  moveSpeed=MAXSPEED;
 
   adjustDirections();
 }
 void speedDown()
 {
-   moveSpeed -= 2;
+  moveSpeed -= 1;
   if(moveSpeed<0)  moveSpeed=0;
 
   adjustDirections();
