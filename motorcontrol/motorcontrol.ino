@@ -17,7 +17,7 @@ unsigned long lastCommandTime;
 
 // This array is to set motor's direction.
 // Change the symbol to change the motor's direction
-signed char directionAdjustment[4]={1,-1,1,-1};
+signed char directionAdjustment[4]={-1,1,-1,1};
 
 // Servo's
 
