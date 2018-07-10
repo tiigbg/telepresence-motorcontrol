@@ -184,7 +184,7 @@ void loop()
 String* parseTextAsValues(String incomingString)
 {
 
-  String values[5] = {};
+  String values[8] = {};
   int firstBreakCharIndex = -1;
   int valuesIndex = 0;
   while(incomingString.indexOf(';') != -1)
@@ -203,7 +203,7 @@ String* parseTextAsValues(String incomingString)
   for(int i=0; i<valuesIndex; i++){
       returnValues[i] = values[i];
   }
-  return values;
+  return returnValues;
 }
 
 void adjustDirections()

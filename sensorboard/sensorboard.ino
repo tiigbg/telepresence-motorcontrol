@@ -19,6 +19,9 @@ int obstacleDirections[] = {MAX_DISTANSE, MAX_DISTANSE, MAX_DISTANSE, MAX_DISTAN
 #define DIR_FRONT_LEFT 7
 
 int ledPin = 13;
+
+// === Bumpers ===
+
 int bumperPinFR = 24;
 int bumperPinRF = 25;
 int bumperPinRB = 26;
@@ -31,6 +34,8 @@ int bumperPinFL = 31;
 
 int bumperValueFR, bumperValueRF, bumperValueRB, bumperValueBR, bumperValueBL, bumperValueLB, bumperValueLF, bumperValueFL;
 
+// === Servos ===
+
 // pitch is looking up/down
 int servoPitchPin = 2;
 // yaw is looking left/right
@@ -39,6 +44,21 @@ int servoYawPin = 3;
 int servoHeightPin = 4;
 
 Servo servoPitch, servoYaw, servoHeight;
+
+// === Lidar ===
+
+Sweep device(Serial3);
+// keeps track of how many scans have been collected
+uint8_t scanCount = 0;
+// keeps track of how many samples have been collected
+uint16_t sampleCount = 0;
+// Arrays to store attributes of collected scans
+bool syncValues[500];         // 1 -> first reading of new scan, 0 otherwise
+float angles[500];            // in degrees (accurate to the millidegree)
+uint16_t distances[500];      // in cm
+uint8_t signalStrengths[500]; // 0:255, higher is better
+
+// === ===
 
 void setup() {                
   pinMode(ledPin, OUTPUT);
@@ -56,8 +76,10 @@ void setup() {
   servoYaw.attach(servoYawPin);
   servoHeight.attach(servoHeightPin);
   
-  Serial.begin(115200);
-  Serial1.begin(115200);
+  Serial.begin(115200); // USB
+  Serial1.begin(115200); // Orion board
+  Serial3.begin(115200); // sweep device
+  resetLidar();
 
   
   
@@ -82,6 +104,10 @@ void loop() {
 
   readBumpers();
   readPingSensors();
+
+  // Lidar
+  readLidar();
+  // ---
 
   Serial.print("{");
   Serial1.print("{");
@@ -156,3 +182,75 @@ void blink(int delayTime) {
   delay(delayTime);
 }
 
+void readLidar() {
+  Serial.println("Reading lidar.");
+  bool success = device.startScanning();
+  Serial.println(success ? "\nSuccessfully initiated scanning..." : "\nFailed to start scanning.");
+  while(scanCount < 3)
+  {
+    success = false;
+    ScanPacket reading = device.getReading(success);
+    if (success)
+    {
+      // check if this reading was the very first reading of a new 360 degree scan
+      if (reading.isSync())
+        scanCount++;
+
+      // don't collect more than 3 scans
+      if (scanCount > 3)
+        break;
+
+      // store the info for this sample
+      syncValues[sampleCount] = reading.isSync();
+      angles[sampleCount] = reading.getAngleDegrees();
+      distances[sampleCount] = reading.getDistanceCentimeters();
+      signalStrengths[sampleCount] = reading.getSignalStrength();
+
+      // increment sample count
+      sampleCount++;
+    }
+  }
+  
+  success = device.stopScanning();
+  Serial.println(success ? "\nSuccessfully stopped scanning." : "\nFailed to stop scanning.");
+  printCollectedLidarData();
+}
+
+// Resets the variables
+void resetLidar()
+{
+  Serial.println("Resetting lidar.");
+  scanCount = 0;
+  sampleCount = 0;
+  // reset the sensor
+  device.reset();
+  delay(50);
+  Serial.flush();
+
+  //bool success = device.setMotorSpeed(MOTOR_SPEED_CODE_5_HZ);
+  //Serial.println(success ? "\nSuccessfully set motor speed." : "\nFailed to set motor speed");
+}
+
+// Prints the collected data to the console
+// (only prints the complete scans, ignores the first partial)
+void printCollectedLidarData()
+{
+  Serial.println("\nPrinting info for the collected scans (NOT REAL-TIME):");
+
+  int indexOfFirstSyncReading = 0;
+  // don't print the trailing readings from the first partial scan
+  while (!syncValues[indexOfFirstSyncReading])
+  {
+    indexOfFirstSyncReading++;
+  }
+  // print the readings for all the complete scans
+  for (int i = indexOfFirstSyncReading; i < sampleCount; i++)
+  {
+    if (syncValues[i])
+    {
+      Serial.println("\n----------------------NEW SCAN----------------------");
+    }
+    //Serial.println("Angle: " + String(angles[i], 3) + ", Distance: " + String(distances[i]) + ", Signal Strength: " + String(signalStrengths[i]));
+    Serial.print(distances[i] + ",");
+  }
+}
