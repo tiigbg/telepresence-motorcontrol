@@ -80,6 +80,10 @@ void setup() {
   servoPitch.attach(servoPitchPin);
   servoYaw.attach(servoYawPin);
   servoHeight.attach(servoHeightPin);
+
+  servoPitch.write(90);
+  servoYaw.write(90);
+  servoHeight.write(90);
   
   Serial.begin(115200); // USB
   Serial1.begin(115200); // Orion board
