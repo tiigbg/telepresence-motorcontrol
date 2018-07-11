@@ -287,6 +287,13 @@ void analizeLidarData() {
     // 315
     // 337.5
 
+    // values 1 and 0 seem to be noise values, so skip those.
+    // TODO Maybe figure out why this happens?
+    if(distances[i] <= 1)
+    {
+      continue;
+    }
+
     // NOTE: angle increments counter-clockwise for the lidar
     if(angles[i] < 12.5 || angles[i] >= 337.5)
     {
