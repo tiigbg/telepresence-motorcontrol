@@ -43,6 +43,13 @@ int servoYawPin = 3;
 // height is lifting the stick up/down
 int servoHeightPin = 4;
 
+int servoPitchMin = 0;
+int servoPitchMax = 180;
+int servoYawMin = 0;
+int servoYawMax = 180;
+int servoHeightMin = 90;
+int servoHeightMax = 180;
+
 Servo servoPitch, servoYaw, servoHeight;
 
 // === Lidar ===
@@ -102,13 +109,23 @@ void setup() {
 }
 
 void loop() {
-  
-  while(Serial1.available() > 0)
+  if(Serial1.available() > 0)
   {
-    Serial.print(char(Serial1.read()));
-    delay(1);
+    readOrionSerial();
   }
-  
+
+  if(Serial.available() > 0)
+  {
+    String incomingString = "";
+    while(Serial.available() > 0)
+    {
+      incomingString += (char)Serial.read();
+      delay(1);
+    }
+    Serial.print("Received string:");
+    Serial.println(incomingString);
+  }
+
   // reset readings
   for(int i = 0; i < 8; i++) {
     obstacleDirections[i] = MAX_DISTANSE;
@@ -119,7 +136,7 @@ void loop() {
   readLidar();
   readBumpers();
 
-  printDistances();
+  //printDistances();
 
   blink(50);
 }
@@ -357,4 +374,67 @@ void printCollectedLidarData()
     Serial.println(String(distances[i]) + ", "+ String(angles[i], 3));
   }
   //Serial.println("0");
+}
+
+void readOrionSerial() {
+  String incomingString = "";
+    while(Serial1.available() > 0)
+    {
+      incomingString += (char)Serial1.read();
+      delay(1);
+    }
+    Serial.print("From orion:");
+    Serial.println(incomingString);
+
+    int beginCharIndex = incomingString.indexOf('<');
+    int endCharIndex = incomingString.indexOf('>');
+    if(beginCharIndex == -1 || endCharIndex == -1 || beginCharIndex >= endCharIndex)
+    {
+      Serial.print("<!> Ignored incoming serial due to wrong formatting of start and end characters. beginCharIndex=");
+      Serial.print(beginCharIndex);
+      Serial.print(" endCharIndex=");
+      Serial.println(endCharIndex);
+      return;
+    }
+
+    // trim off begin and end characters
+    incomingString = incomingString.substring(beginCharIndex+1, endCharIndex);
+
+
+    int firstBreakCharIndex = incomingString.indexOf(';');
+    if(firstBreakCharIndex == -1)
+    {
+      Serial.println("<!> Did not find first break character (;).");
+      return;
+    }
+    int secondBreakCharIndex = incomingString.indexOf(';', firstBreakCharIndex+1);
+    if(secondBreakCharIndex == -1)
+    {
+      Serial.println("<!> Did not find second break character (;).");
+      return;
+    }
+
+    
+    String firstValue = incomingString.substring(0, firstBreakCharIndex);
+    String secondValue = incomingString.substring(firstBreakCharIndex+1, secondBreakCharIndex);
+    String thirdValue = incomingString.substring(secondBreakCharIndex+1);
+
+    Serial.println("("+incomingString.substring(firstBreakCharIndex+1, secondBreakCharIndex)+")");
+    int servoPitchValue = incomingString.substring(0, firstBreakCharIndex).toInt();
+    int servoYawValue = incomingString.substring(firstBreakCharIndex+1, secondBreakCharIndex).toInt();
+    int servoHeightValue = incomingString.substring(secondBreakCharIndex+1).toInt();
+
+    servoPitchValue = min(max(servoPitchValue, servoPitchMin), servoPitchMax);
+    servoYawValue = min(max(servoYawValue, servoYawMin), servoYawMax);
+    servoHeightValue = min(max(servoHeightValue, servoHeightMin), servoHeightMax);
+
+    Serial.println("Writing servos:");
+    Serial.print(servoPitchValue);
+    Serial.println(" // ");
+    Serial.print(servoYawValue);
+    Serial.println(" // ");
+    Serial.println(servoHeightValue);
+    servoPitch.write(servoPitchValue);
+    servoYaw.write(servoYawValue);
+    servoHeight.write(servoHeightValue);
 }

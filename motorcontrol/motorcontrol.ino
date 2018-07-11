@@ -117,9 +117,9 @@ void loop()
       Serial.print(" ");
       Serial.println(servo2Value);
       
+      //teensySerial.println("<"+incomingString+">");
       servo1.write(servo1Value);
       servo2.write(servo2Value);
-      
       
       return;
     }
@@ -137,6 +137,15 @@ void loop()
       return;
     }
     
+
+    // String* valuesStrings = parseTextAsValues(incomingString);
+    // if(!valuesStrings[5])
+    // {
+    //   Serial.println("<!> Did not get 6 values separated by semicolons.");
+    //   return;
+    // }
+    // Serial.println("Did get 6 values separated by semicolons.");
+    
     int firstBreakCharIndex = incomingString.indexOf(';');
     if(firstBreakCharIndex == -1)
     {
@@ -149,9 +158,19 @@ void loop()
       Serial.println("<!> Did not find second break character (;).");
       return;
     }
+    int thirdBreakCharIndex = incomingString.indexOf(';', secondBreakCharIndex+1);
+    if(thirdBreakCharIndex == -1)
+    {
+      Serial.println("<!> Did not find third break character (;).");
+      return;
+    }
     String firstValue = incomingString.substring(0, firstBreakCharIndex);
     String secondValue = incomingString.substring(firstBreakCharIndex+1, secondBreakCharIndex);
-    String thirdValue = incomingString.substring(secondBreakCharIndex+1);
+    String thirdValue = incomingString.substring(secondBreakCharIndex+1, thirdBreakCharIndex);
+    String fourthValue = incomingString.substring(thirdBreakCharIndex+1);
+    
+
+
 
     /*
     Serial.print("Parsed: ");
@@ -162,16 +181,17 @@ void loop()
     Serial.println(thirdValue);
     */
 
+
     float newDirection = firstValue.toFloat();
     float newSpeed = secondValue.toFloat();
     float newRotation = thirdValue.toFloat();
 
-    Serial.print("Floats: ");
-    Serial.print(newDirection);
-    Serial.print(" // ");
-    Serial.print(newSpeed);
-    Serial.print(" // ");
-    Serial.println(newRotation);
+    // Serial.print("Floats: ");
+    // Serial.print(newDirection);
+    // Serial.print(" // ");
+    // Serial.print(newSpeed);
+    // Serial.print(" // ");
+    // Serial.println(newRotation);
 
     // make sure arguments are within the boundaries
     newDirection = fmod((fmod(newDirection,float(2.0*PI)) + 2.0*PI),float(2.0*PI));
@@ -183,11 +203,16 @@ void loop()
     Serial.print(" // ");
     Serial.print(newSpeed);
     Serial.print(" // ");
-    Serial.println(newRotation);
+    Serial.print(newRotation);
+    Serial.print(" // ");
+    Serial.println(fourthValue);
+
 
     lastCommandTime = millis();
-    
+    teensySerial.println("<"+fourthValue+">");
     calculateSpeeds(newDirection, newSpeed, newRotation);
+    
+    // <0;0;0;90;90;90>
   }
 
   if(motorsEnabled && millis() > lastCommandTime + COMMAND_TIMEOUT)
@@ -200,10 +225,10 @@ void loop()
   Takes as input a string with values separated by semicolons. Currently limited to max 10 values.
   Returns a string array with the values.
 */
-String* parseTextAsValues(String incomingString)
+/*String* parseTextAsValues(String incomingString)
 {
   // FIXME we assume there to be max 10 values
-  String values[10] = {};
+  String values[6] = {};
   int firstBreakCharIndex = -1;
   int valuesIndex = 0;
   while(incomingString.indexOf(';') != -1)
@@ -221,9 +246,12 @@ String* parseTextAsValues(String incomingString)
   String returnValues[valuesIndex];
   for(int i=0; i<valuesIndex; i++){
       returnValues[i] = values[i];
+
+      Serial.println("value:(");
+      Serial.println(returnValues[i]+")");
   }
   return returnValues;
-}
+}*/
 
 void adjustDirections()
 {
