@@ -3,6 +3,9 @@
 Documentation about Orion board
 http://learn.makeblock.com/en/makeblock-orion/
 
+Documentation Teensy 3.6 board
+https://www.pjrc.com/teensy/pinout.html
+
 // angle to translate at: [0, 2pi]
 //    PI*1.5 = right direction
 //    0      = forward direction
