@@ -196,10 +196,14 @@ void loop()
   }
 }
 
+/*
+  Takes as input a string with values separated by semicolons. Currently limited to max 10 values.
+  Returns a string array with the values.
+*/
 String* parseTextAsValues(String incomingString)
 {
-
-  String values[8] = {};
+  // FIXME we assume there to be max 10 values
+  String values[10] = {};
   int firstBreakCharIndex = -1;
   int valuesIndex = 0;
   while(incomingString.indexOf(';') != -1)
