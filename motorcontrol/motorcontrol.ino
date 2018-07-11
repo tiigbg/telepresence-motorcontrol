@@ -2,6 +2,8 @@
 #include <Wire.h>
 #include <SoftwareSerial.h>
 
+SoftwareSerial teensySerial(A3, A2); // RX, TX
+
 MeEncoderNew motor1(0x09, SLOT1); // front right
 MeEncoderNew motor2(0x09, SLOT2); // front left
 MeEncoderNew motor3(0x0a, SLOT1); // back right
@@ -52,13 +54,26 @@ void setup()
   
   Serial.begin(115200);
   Serial.println("Makeblock started ok");
+  teensySerial.begin(9600);
+  teensySerial.println("Hello Teensy, this is Makeblock.");
 }
 
 
 
 void loop()
 {
-  
+  if(teensySerial.available() > 0)
+  {
+    String incomingTeensyString = "";
+    while(teensySerial.available() > 0)
+    {
+      incomingTeensyString += (char)teensySerial.read();
+      delay(1);
+    }
+    Serial.print("Received from teensy:");
+    Serial.println(incomingTeensyString);
+  }
+
   if(Serial.available() > 0)
   {
     String incomingString = "";

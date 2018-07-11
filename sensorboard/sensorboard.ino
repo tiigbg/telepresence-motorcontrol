@@ -86,7 +86,7 @@ void setup() {
   servoHeight.write(90);
   
   Serial.begin(115200); // USB
-  Serial1.begin(115200); // Orion board
+  Serial1.begin(9600); // Orion board
   Serial3.begin(115200); // sweep device
   
   ledOn();
@@ -102,13 +102,13 @@ void setup() {
 }
 
 void loop() {
-  /*
+  
   while(Serial1.available() > 0)
   {
     Serial.print(char(Serial1.read()));
+    delay(1);
   }
-  */
-
+  
   // reset readings
   for(int i = 0; i < 8; i++) {
     obstacleDirections[i] = MAX_DISTANSE;
