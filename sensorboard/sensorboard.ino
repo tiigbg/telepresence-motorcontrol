@@ -89,7 +89,9 @@ void setup() {
   Serial1.begin(115200); // Orion board
   Serial3.begin(115200); // sweep device
   
+  ledOn();
   setupLidar();
+  ledOff();
   resetLidarValues();
   
   
@@ -188,10 +190,18 @@ void readBumpers() {
 }
 
 void blink(int delayTime) {
+  ledOn();
+  delay(delayTime);
+  ledOff();
+  delay(delayTime);
+}
+
+void ledOn() {
   digitalWrite(ledPin, HIGH);
-  delay(delayTime);
+}
+
+void ledOff() {
   digitalWrite(ledPin, LOW);
-  delay(delayTime);
 }
 
 void readLidar() {
