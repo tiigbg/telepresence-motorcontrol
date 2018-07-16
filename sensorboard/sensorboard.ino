@@ -136,7 +136,7 @@ void loop() {
   readLidar();
   readBumpers();
 
-  //printDistances();
+  printDistances();
 
   blink(50);
 }
