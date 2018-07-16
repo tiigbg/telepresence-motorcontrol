@@ -98,6 +98,7 @@ void loop()
     // trim off begin and end characters
     incomingString = incomingString.substring(beginCharIndex+1, endCharIndex);
 
+    /*
     if(incomingString.substring(0,1) == "s")
     {
       Serial.println("This is a servo only command.");
@@ -136,6 +137,7 @@ void loop()
       disableMotors();
       return;
     }
+    */
     
 
     // String* valuesStrings = parseTextAsValues(incomingString);
@@ -162,12 +164,19 @@ void loop()
     if(thirdBreakCharIndex == -1)
     {
       Serial.println("<!> Did not find third break character (;).");
-      return;
+      //return;
     }
     String firstValue = incomingString.substring(0, firstBreakCharIndex);
     String secondValue = incomingString.substring(firstBreakCharIndex+1, secondBreakCharIndex);
-    String thirdValue = incomingString.substring(secondBreakCharIndex+1, thirdBreakCharIndex);
-    String fourthValue = incomingString.substring(thirdBreakCharIndex+1);
+    String thirdValue = "";
+    if(thirdBreakCharIndex == -1)
+    {
+      thirdValue = incomingString.substring(secondBreakCharIndex+1);
+    }else {
+      thirdValue = incomingString.substring(secondBreakCharIndex+1, thirdBreakCharIndex);
+    }
+    
+    
     
 
 
@@ -204,13 +213,18 @@ void loop()
     Serial.print(newSpeed);
     Serial.print(" // ");
     Serial.print(newRotation);
-    Serial.print(" // ");
-    Serial.println(fourthValue);
 
 
     lastCommandTime = millis();
-    teensySerial.println("<"+fourthValue+">");
+    
     calculateSpeeds(newDirection, newSpeed, newRotation);
+
+    if(thirdBreakCharIndex != -1)
+    {
+      String fourthValue = incomingString.substring(thirdBreakCharIndex+1);
+      Serial.println(fourthValue);
+      teensySerial.println("<"+fourthValue+">");
+    }
     
     // <0;0;0;90;90;90>
   }
