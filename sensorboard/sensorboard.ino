@@ -18,6 +18,8 @@ int obstacleDirections[] = {MAX_DISTANSE, MAX_DISTANSE, MAX_DISTANSE, MAX_DISTAN
 #define DIR_LEFT 6
 #define DIR_FRONT_LEFT 7
 
+unsigned long lastSerialSend = millis();
+unsigned long maxSerialSendTime = 500;
 int ledPin = 13;
 
 // === Bumpers ===
@@ -55,6 +57,7 @@ Servo servoPitch, servoYaw, servoHeight;
 // === Lidar ===
 
 Sweep device(Serial3);
+bool lidarAvailable = false;
 // keeps track of how many scans have been collected
 uint8_t scanCount = 0;
 uint8_t nrOfScansToMake = 2;
@@ -131,7 +134,6 @@ void loop() {
     obstacleDirections[i] = MAX_DISTANSE;
   }
 
-  
   readPingSensors();
   readLidar();
   readBumpers();
@@ -142,6 +144,11 @@ void loop() {
 }
 
 void printDistances() {
+  if(millis() < lastSerialSend + maxSerialSendTime)
+  {
+    return;
+  }
+  lastSerialSend = millis();
   Serial.print("{");
   Serial1.print("{");
   for(int i = 0; i < 8; i++) {
@@ -222,8 +229,16 @@ void ledOff() {
 }
 
 void readLidar() {
+  if(!lidarAvailable)
+  {
+    return;
+  }
   //Serial.println("Reading lidar.");
   bool success = device.startScanning();
+  if(!success)
+  {
+    return;
+  }
   //Serial.println(success ? "\nSuccessfully initiated scanning..." : "\nFailed to start scanning.");
   while(scanCount < nrOfScansToMake)
   {
@@ -263,10 +278,10 @@ void setupLidar() {
   device.reset();
   delay(50);
   Serial.flush();
-  bool bSuccess = device.setMotorSpeed(MOTOR_SPEED_CODE_10_HZ);
-  Serial.println(bSuccess ? "\nSuccessfully set motor speed." : "\nFailed to set motor speed");
+  lidarAvailable = device.setMotorSpeed(MOTOR_SPEED_CODE_10_HZ);
+  Serial.println(lidarAvailable ? "\nSuccessfully set motor speed." : "\nFailed to set motor speed");
   // Set the sample rate (codes available for 500, 750 and 1000 HZ)
-  bSuccess = device.setSampleRate(SAMPLE_RATE_CODE_1000_HZ);
+  bool bSuccess = device.setSampleRate(SAMPLE_RATE_CODE_1000_HZ);
   Serial.println(bSuccess ? "\nSuccessfully set sample rate." : "\nFailed to set sample rate.");
 
   //bool success = device.startScanning();
@@ -287,7 +302,7 @@ void analizeLidarData() {
   {
     indexOfFirstSyncReading++;
   }
-  // print the readings for all the complete scans
+  
   for (int i = indexOfFirstSyncReading; i < sampleCount; i++)
   {
     if (syncValues[i])
@@ -297,22 +312,6 @@ void analizeLidarData() {
     //Serial.println("Angle: " + String(angles[i], 3) + ", Distance: " + String(distances[i]) + ", Signal Strength: " + String(signalStrengths[i]));
     //Serial.print(String(distances[i]) + ",");
     //Serial.println(String(distances[i]) + ", "+ String(angles[i], 3));
-
-    // 22.5
-    // 45
-    // 67.5
-    // 90
-    // 112.5
-    // 135
-    // 157.5
-    // 180
-    // 202.5
-    // 225
-    // 247.5
-    // 270
-    // 292.5
-    // 315
-    // 337.5
 
     // values 1 and 0 seem to be noise values, so skip those.
     // TODO Maybe figure out why this happens?
@@ -350,7 +349,7 @@ void analizeLidarData() {
   }
 }
 
-// Prints the collected data to the console
+// Prints the collected lidar data to the console
 // (only prints the complete scans, ignores the first partial)
 void printCollectedLidarData()
 {
