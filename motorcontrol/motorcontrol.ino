@@ -13,7 +13,11 @@ MeEncoderNew motor4(0x0a, SLOT2); // back left
 #define DEFAULTSPEED 10
 #define COMMAND_TIMEOUT 300
 
-int moveSpeed = DEFAULTSPEED,motor1speed=0,motor2speed=0,motor3speed=0,motor4speed=0;
+int moveSpeed = DEFAULTSPEED;
+float motor1Speed = 0, motor2Speed = 0, motor3Speed = 0, motor4Speed = 0;
+float motor1SpeedTarget = 0, motor2SpeedTarget = 0, motor3SpeedTarget = 0, motor4SpeedTarget = 0; 
+
+float motorFilterQ = 0.04; // adjusts how fast the motor will get to its actual target speed
 boolean motorsEnabled = true;
 unsigned long lastCommandTime;
 
@@ -70,8 +74,8 @@ void loop()
       incomingTeensyString += (char)teensySerial.read();
       delay(1);
     }
-    Serial.print("Received from teensy:");
-    Serial.println(incomingTeensyString);
+    // Serial.print("Received from teensy:");
+    // Serial.println(incomingTeensyString);
   }
 
   if(Serial.available() > 0)
@@ -210,14 +214,32 @@ void loop()
   {
     stopAll();
   }
-}
+  else{
+    // lowpass filter
+    // current = (1-q)*current+q*target
+    motor1Speed = (1-motorFilterQ)*motor1Speed + motorFilterQ * motor1SpeedTarget;
+    motor2Speed = (1-motorFilterQ)*motor2Speed + motorFilterQ * motor2SpeedTarget;
+    motor3Speed = (1-motorFilterQ)*motor3Speed + motorFilterQ * motor3SpeedTarget;
+    motor4Speed = (1-motorFilterQ)*motor4Speed + motorFilterQ * motor4SpeedTarget;
+
+    if(motorsEnabled)
+    {
+      //Serial.println(motor1Speed);
+      motor1.runSpeed(motor1Speed,0);
+      motor2.runSpeed(motor2Speed,0);
+      motor3.runSpeed(motor3Speed,0);
+      motor4.runSpeed(motor4Speed,0);
+    }
+  }
+
+} // end of loop()
 
 void adjustDirections()
 {
-  motor1speed = moveSpeed*directionAdjustment[0];
-  motor2speed = moveSpeed*directionAdjustment[1];
-  motor3speed = moveSpeed*directionAdjustment[2];
-  motor4speed = moveSpeed*directionAdjustment[3];
+  motor1SpeedTarget = moveSpeed*directionAdjustment[0];
+  motor2SpeedTarget = moveSpeed*directionAdjustment[1];
+  motor3SpeedTarget = moveSpeed*directionAdjustment[2];
+  motor4SpeedTarget = moveSpeed*directionAdjustment[3];
 }
 
 void speedUp()
@@ -236,6 +258,17 @@ void speedDown()
 }
 void stopAll()
 {
+  motor1Speed = 0;
+  motor2Speed = 0;
+  motor3Speed = 0;
+  motor4Speed = 0;
+  
+  motor1SpeedTarget = 0;
+  motor2SpeedTarget = 0;
+  motor3SpeedTarget = 0;
+  motor4SpeedTarget = 0;
+  
+
   motor1.runSpeed(0,0);
   motor2.runSpeed(0,0);
   motor3.runSpeed(0,0);
@@ -269,6 +302,8 @@ void calculateSpeeds(float myAngle, float mySpeed, float myRotation)
   // TODO FIXME There seems to be some kind of rounding issue where sin and cos don't return the same value 
   // when they should (for example when driving straight forward, all motors should get equal, now they
   // differ with 1)
+  Serial.println("mySpeed="+String(mySpeed));
+  Serial.println(sin(myAngle + PI / 4.0));
   float motor1multiplier = mySpeed * sin(myAngle + PI / 4.0) + myRotation;
   float motor2multiplier = mySpeed * cos(myAngle + PI / 4.0) - myRotation;
   float motor3multiplier = mySpeed * cos(myAngle + PI / 4.0) + myRotation;
@@ -289,10 +324,10 @@ void calculateSpeeds(float myAngle, float mySpeed, float myRotation)
     motor4multiplier = motor4multiplier / maxMultiplier;
   }
   
-  motor1speed = directionAdjustment[0] * moveSpeed * motor1multiplier;
-  motor2speed = directionAdjustment[1] * moveSpeed * motor2multiplier;
-  motor3speed = directionAdjustment[2] * moveSpeed * motor3multiplier;
-  motor4speed = directionAdjustment[3] * moveSpeed * motor4multiplier;
+  motor1SpeedTarget = directionAdjustment[0] * moveSpeed * motor1multiplier;
+  motor2SpeedTarget = directionAdjustment[1] * moveSpeed * motor2multiplier;
+  motor3SpeedTarget = directionAdjustment[2] * moveSpeed * motor3multiplier;
+  motor4SpeedTarget = directionAdjustment[3] * moveSpeed * motor4multiplier;
 
   // Serial.print("multipliers   1:");
   // Serial.print(motor1multiplier);
@@ -304,23 +339,13 @@ void calculateSpeeds(float myAngle, float mySpeed, float myRotation)
   // Serial.println(motor4multiplier);
   
   // Serial.print("speeds        1:");
-  // Serial.print(motor1speed);
+  // Serial.print(motor1SpeedTarget);
   // Serial.print(" 2:");
-  // Serial.print(motor2speed);
+  // Serial.print(motor2SpeedTarget);
   // Serial.print(" 3:");
-  // Serial.print(motor3speed);
+  // Serial.print(motor3SpeedTarget);
   // Serial.print(" 4:");
-  // Serial.println(motor4speed);
-  if(motorsEnabled)
-  {
-    motor1.runSpeed(motor1speed,0);
-    motor2.runSpeed(motor2speed,0);
-    motor3.runSpeed(motor3speed,0);
-    motor4.runSpeed(motor4speed,0);
-  }
-  else
-  {
-    Serial.println("Motors are disabled.");
-  }
+  // Serial.println(motor4SpeedTarget);
+
 }
 
