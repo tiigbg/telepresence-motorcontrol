@@ -78,6 +78,13 @@ void setup() {
   blink(50);
   blink(300);
 
+  Serial.begin(115200); // USB
+  Serial1.begin(9600); // Orion board
+  Serial3.begin(115200); // sweep device
+
+  Serial.println("Teensy starting up..");
+  Serial1.println("Hi Makeblock, Teensy is starting..");
+
   pinMode(bumperPinFR, INPUT_PULLUP);
   pinMode(bumperPinRF, INPUT_PULLUP);
   pinMode(bumperPinRB, INPUT_PULLUP);
@@ -95,9 +102,7 @@ void setup() {
   servoYaw.write(90);
   servoHeight.write(90);
   
-  Serial.begin(115200); // USB
-  Serial1.begin(9600); // Orion board
-  Serial3.begin(115200); // sweep device
+  
   
   ledOn();
   setupLidar();
@@ -106,6 +111,7 @@ void setup() {
   
   
   Serial.println("Teensy started ok");
+  Serial1.println("Teensy is ready to go!");
   blink(200);
   blink(200);
   blink(200);
