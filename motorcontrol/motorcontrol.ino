@@ -139,14 +139,6 @@ void loop()
     }
     */
     
-
-    // String* valuesStrings = parseTextAsValues(incomingString);
-    // if(!valuesStrings[5])
-    // {
-    //   Serial.println("<!> Did not get 6 values separated by semicolons.");
-    //   return;
-    // }
-    // Serial.println("Did get 6 values separated by semicolons.");
     
     int firstBreakCharIndex = incomingString.indexOf(';');
     if(firstBreakCharIndex == -1)
@@ -176,21 +168,6 @@ void loop()
       thirdValue = incomingString.substring(secondBreakCharIndex+1, thirdBreakCharIndex);
     }
     
-    
-    
-
-
-
-    /*
-    Serial.print("Parsed: ");
-    Serial.print(firstValue);
-    Serial.print(" // ");
-    Serial.print(secondValue);
-    Serial.print(" // ");
-    Serial.println(thirdValue);
-    */
-
-
     float newDirection = firstValue.toFloat();
     float newSpeed = secondValue.toFloat();
     float newRotation = thirdValue.toFloat();
@@ -212,7 +189,7 @@ void loop()
     Serial.print(" // ");
     Serial.print(newSpeed);
     Serial.print(" // ");
-    Serial.print(newRotation);
+    Serial.println(newRotation);
 
 
     lastCommandTime = millis();
@@ -222,7 +199,7 @@ void loop()
     if(thirdBreakCharIndex != -1)
     {
       String fourthValue = incomingString.substring(thirdBreakCharIndex+1);
-      Serial.println(fourthValue);
+      Serial.println("To Teensy:<"+fourthValue+">");
       teensySerial.println("<"+fourthValue+">");
     }
     
@@ -234,38 +211,6 @@ void loop()
     stopAll();
   }
 }
-
-/*
-  Takes as input a string with values separated by semicolons. Currently limited to max 10 values.
-  Returns a string array with the values.
-*/
-/*String* parseTextAsValues(String incomingString)
-{
-  // FIXME we assume there to be max 10 values
-  String values[6] = {};
-  int firstBreakCharIndex = -1;
-  int valuesIndex = 0;
-  while(incomingString.indexOf(';') != -1)
-  {
-    int secondBreakCharIndex = incomingString.indexOf(';', firstBreakCharIndex+1);
-
-    values[valuesIndex] = incomingString.substring(firstBreakCharIndex+1, secondBreakCharIndex);
-    firstBreakCharIndex = secondBreakCharIndex;
-    valuesIndex++;
-  }
-  values[valuesIndex] = incomingString.substring(firstBreakCharIndex+1);
-  valuesIndex++;
-  Serial.println("Found "+String(valuesIndex)+" values.");
-
-  String returnValues[valuesIndex];
-  for(int i=0; i<valuesIndex; i++){
-      returnValues[i] = values[i];
-
-      Serial.println("value:(");
-      Serial.println(returnValues[i]+")");
-  }
-  return returnValues;
-}*/
 
 void adjustDirections()
 {
