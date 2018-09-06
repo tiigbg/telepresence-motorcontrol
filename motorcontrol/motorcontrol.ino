@@ -25,23 +25,40 @@ unsigned long lastCommandTime;
 // Change the symbol to change the motor's direction
 signed char directionAdjustment[4]={-1,1,-1,1};
 
-// Servo's
+// === Serial ===
 
-MePort port(PORT_3);
-Servo servo1;  // create servo object to control a servo 
-Servo servo2;  // create servo object to control another servo
-int16_t servo1pin =  port.pin1();//attaches the servo on PORT_3 SLOT1 to the servo object
-int16_t servo2pin =  port.pin2();//attaches the servo on PORT_3 SLOT2 to the servo object
+bool serialSynced = false;
 
-int servo1Center = 90;
-int servo1Min = 20;
-int servo1Max = 160;
-int servo2Center = 90;
-int servo2Min = 20;
-int servo2Max = 160;
+struct teensyOrionServoMsgType {
+  uint16_t pitch = 90;
+  uint16_t yaw = 90;
+  uint16_t height = 90;
+} servoMsg;
+
+// this tracks how far away an obstacle is detected
+// in 8 directions.
+// directions are (in order): forward, forward right, right, backward right,
+// backward, backward left, left, forward left
+#define MAX_DISTANCE 999
+#define DIR_FRONT 0
+#define DIR_FRONT_RIGHT 1
+#define DIR_RIGHT 2
+#define DIR_BACK_RIGHT 3
+#define DIR_BACK 4
+#define DIR_BACK_LEFT 5
+#define DIR_LEFT 6
+#define DIR_FRONT_LEFT 7
+
+struct teensyOrionDistanceMsgType {
+  int obstacleDirections[8] = {MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE};
+} distanceMsg;
+
+// === ===
 
 void setup()
 {
+  Serial.begin(115200);
+  Serial.println("Makeblock starting..");
   motor1.begin();
   //  motor2.begin(); // not sure why this is commented out,
                       // maybe because it is only about starting the motor board?
@@ -49,36 +66,38 @@ void setup()
   //  motor4.begin();
   delay(10);
   stopAll();
-
-  servo1.attach(servo1pin);  // attaches the servo on servopin1
-  servo2.attach(servo2pin);  // attaches the servo on servopin2
-
-  servo1.write(servo1Center);
-  servo2.write(servo2Center);
   
-  Serial.begin(115200);
-  Serial.println("Makeblock started ok");
+  
+  
   teensySerial.begin(9600);
-  teensySerial.println("Hello Teensy, this is Makeblock.");
+  Serial.print("Waiting for sync with Teensy");
+  while(!serialSynced) {
+    teensySerial.write('s');
+    Serial.print(".");
+    delay(100);
+    while(teensySerial.available()) {
+      uint8_t c = teensySerial.read();
+      if(c == 's') {
+        serialSynced = true;
+      }
+    }
+  }
+  Serial.println("Synced.");
+
+
+  Serial.println("Makeblock started ok");
+  Serial.println("Example command:");
+  Serial.println("<0;0;0;90;90;90>");
 }
 
 
 
 void loop()
 {
-  if(teensySerial.available() > 0)
-  {
-    String incomingTeensyString = "";
-    while(teensySerial.available() > 0)
-    {
-      incomingTeensyString += (char)teensySerial.read();
-      delay(1);
-    }
-    // Serial.print("Received from teensy:");
-    // Serial.println(incomingTeensyString);
-  }
+  readTeensySerial();
 
-  if(Serial.available() > 0)
+
+  if(Serial.available() > 0)  // example: <0;0;0;90;90;90>
   {
     String incomingString = "";
     while(Serial.available() > 0)
@@ -101,48 +120,6 @@ void loop()
     }
     // trim off begin and end characters
     incomingString = incomingString.substring(beginCharIndex+1, endCharIndex);
-
-    /*
-    if(incomingString.substring(0,1) == "s")
-    {
-      Serial.println("This is a servo only command.");
-      incomingString = incomingString.substring(1);
-      int firstBreakCharIndex = incomingString.indexOf(';');
-      if(firstBreakCharIndex == -1)
-      {
-        Serial.println("<!> Did not find first break character (;).");
-        return;
-      }
-      int servo1Value = incomingString.substring(0, firstBreakCharIndex).toInt();
-      int servo2Value = incomingString.substring(firstBreakCharIndex+1).toInt();
-
-      servo1Value = min(max(servo1Value, servo1Min), servo1Max);
-      servo2Value = min(max(servo2Value, servo2Min), servo2Max);
-      Serial.print(servo1Value);
-      Serial.print(" ");
-      Serial.println(servo2Value);
-      
-      //teensySerial.println("<"+incomingString+">");
-      servo1.write(servo1Value);
-      servo2.write(servo2Value);
-      
-      return;
-    }
-    else if(incomingString.substring(0,1) == "r")
-    {
-      if(incomingString.length() >= 2 && incomingString.substring(1,2) == "0")
-      {
-        Serial.println("Enabled motors");
-        motorsEnabled = true;
-        stopAll();
-        return;
-      }
-      Serial.println("Disabled motors");
-      disableMotors();
-      return;
-    }
-    */
-    
     
     int firstBreakCharIndex = incomingString.indexOf(';');
     if(firstBreakCharIndex == -1)
@@ -202,12 +179,33 @@ void loop()
 
     if(thirdBreakCharIndex != -1)
     {
+      /*
       String fourthValue = incomingString.substring(thirdBreakCharIndex+1);
       Serial.println("To Teensy:<"+fourthValue+">");
       teensySerial.println("<"+fourthValue+">");
+      */
+      int fourthBreakCharIndex = incomingString.indexOf(';', thirdBreakCharIndex+1);
+      int fifthBreakCharIndex = incomingString.indexOf(';', fourthBreakCharIndex+1);
+
+      if(fourthBreakCharIndex == -1 || fifthBreakCharIndex == -1) {
+        return;
+      }
+      String fourthValue = incomingString.substring(thirdBreakCharIndex+1, fourthBreakCharIndex);
+      String fifthValue = incomingString.substring(fourthBreakCharIndex+1, fifthBreakCharIndex);
+      String sixthValue = incomingString.substring(fifthBreakCharIndex+1);
+
+      servoMsg.pitch = fourthValue.toInt();
+      servoMsg.yaw = fifthValue.toInt();
+      servoMsg.height = sixthValue.toInt();
+
+      teensySerial.write((const char *) &servoMsg, sizeof(teensyOrionServoMsgType));
+      Serial.print("writing to teensy:");
+      Serial.print(servoMsg.pitch);
+      Serial.print(" // ");
+      Serial.print(servoMsg.yaw);
+      Serial.print(" // ");
+      Serial.println(servoMsg.height);
     }
-    
-    // <0;0;0;90;90;90>
   }
 
   if(motorsEnabled && millis() > lastCommandTime + COMMAND_TIMEOUT)
@@ -301,9 +299,7 @@ void calculateSpeeds(float myAngle, float mySpeed, float myRotation)
   myRotation = myRotation * -1;
   // TODO FIXME There seems to be some kind of rounding issue where sin and cos don't return the same value 
   // when they should (for example when driving straight forward, all motors should get equal, now they
-  // differ with 1)
-  Serial.println("mySpeed="+String(mySpeed));
-  Serial.println(sin(myAngle + PI / 4.0));
+  // differ with 1
   float motor1multiplier = mySpeed * sin(myAngle + PI / 4.0) + myRotation;
   float motor2multiplier = mySpeed * cos(myAngle + PI / 4.0) - myRotation;
   float motor3multiplier = mySpeed * cos(myAngle + PI / 4.0) + myRotation;
@@ -349,3 +345,9 @@ void calculateSpeeds(float myAngle, float mySpeed, float myRotation)
 
 }
 
+void readTeensySerial() {
+  if(teensySerial.available() < (int) sizeof(teensyOrionDistanceMsgType)) {
+    return;
+  }
+  teensySerial.readBytes((char *) &distanceMsg, sizeof(teensyOrionDistanceMsgType));
+}

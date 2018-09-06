@@ -7,8 +7,8 @@
 // in 8 directions.
 // directions are (in order): forward, forward right, right, backward right,
 // backward, backward left, left, forward left
-#define MAX_DISTANSE 999
-int obstacleDirections[] = {MAX_DISTANSE, MAX_DISTANSE, MAX_DISTANSE, MAX_DISTANSE, MAX_DISTANSE, MAX_DISTANSE, MAX_DISTANSE, MAX_DISTANSE};
+#define MAX_DISTANCE 999
+//int obstacleDirections[] = {MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE};
 #define DIR_FRONT 0
 #define DIR_FRONT_RIGHT 1
 #define DIR_RIGHT 2
@@ -18,9 +18,26 @@ int obstacleDirections[] = {MAX_DISTANSE, MAX_DISTANSE, MAX_DISTANSE, MAX_DISTAN
 #define DIR_LEFT 6
 #define DIR_FRONT_LEFT 7
 
+int ledPin = 13;
+
+// === Serial ===
+
 unsigned long lastSerialSend = millis();
 unsigned long maxSerialSendTime = 500;
-int ledPin = 13;
+bool serialSynced = false;
+
+struct teensyOrionServoMsgType {
+  uint16_t pitch = 90;
+  uint16_t yaw = 90;
+  uint16_t height = 90;
+} servoMsg;
+
+struct teensyOrionDistanceMsgType {
+  int obstacleDirections[8] = {MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE};
+} distanceMsg;
+
+
+
 
 // === Bumpers ===
 
@@ -80,10 +97,10 @@ void setup() {
 
   Serial.begin(115200); // USB
   Serial1.begin(9600); // Orion board
-  Serial3.begin(115200); // sweep device
+  Serial3.begin(115200); // sweep lidar device
 
   Serial.println("Teensy starting up..");
-  Serial1.println("Hi Makeblock, Teensy is starting..");
+  //Serial1.println("Hi Makeblock, Teensy is starting..");
 
   pinMode(bumperPinFR, INPUT_PULLUP);
   pinMode(bumperPinRF, INPUT_PULLUP);
@@ -98,20 +115,41 @@ void setup() {
   servoYaw.attach(servoYawPin);
   servoHeight.attach(servoHeightPin);
 
-  servoPitch.write(90);
-  servoYaw.write(90);
-  servoHeight.write(90);
+  servoPitch.write(servoMsg.pitch);
+  servoYaw.write(servoMsg.yaw);
+  servoHeight.write(servoMsg.height);
   
   
-  
-  ledOn();
-  setupLidar();
-  ledOff();
-  resetLidarValues();
-  
+  // TODO find a way to either reduce the timeout or to skip this
+  // ledOn();
+  // setupLidar();
+  // ledOff();
+  // resetLidarValues();
+
+  // wait for sync char from Orion
+  Serial.print("Waiting for Orion sync char");
+  while(!serialSynced) {
+    while(Serial1.available()) {
+      uint8_t c = Serial1.read();
+      if(c == 's') {
+        serialSynced = true;
+      }
+    }
+    Serial.print(".");
+    delay(300);
+    blink(300);
+  }
+  // empty the buffer
+  delay(10);
+  while(Serial1.available()> 0) {
+    Serial1.read();
+  }
+  Serial.println("Synced.");
+  // Send sync char to Orion
+
+  Serial1.write('s');
   
   Serial.println("Teensy started ok");
-  Serial1.println("Teensy is ready to go!");
   blink(200);
   blink(200);
   blink(200);
@@ -137,7 +175,7 @@ void loop() {
 
   // reset readings
   for(int i = 0; i < 8; i++) {
-    obstacleDirections[i] = MAX_DISTANSE;
+    distanceMsg.obstacleDirections[i] = MAX_DISTANCE;
   }
 
   readPingSensors();
@@ -155,12 +193,14 @@ void printDistances() {
     return;
   }
   lastSerialSend = millis();
+
+  /*
   Serial.print("{");
   Serial1.print("{");
   for(int i = 0; i < 8; i++) {
     Serial.print(obstacleDirections[i]);
     Serial1.print(obstacleDirections[i]);
-  
+
     if(i<7)
     {
       Serial.print(", ");
@@ -169,6 +209,9 @@ void printDistances() {
   }
   Serial.println("}");
   Serial1.println("}");
+  */
+ Serial1.write((const char *) &distanceMsg, sizeof(teensyOrionDistanceMsgType));
+
 }
 
 void readPingSensors() {
@@ -187,35 +230,35 @@ void readBumpers() {
 
   if(bumperValueFL || bumperValueFR)
   {
-    obstacleDirections[DIR_FRONT] = 0;
+    distanceMsg.obstacleDirections[DIR_FRONT] = 0;
   }
   if(bumperValueFR || bumperValueRF)
   {
-    obstacleDirections[DIR_FRONT_RIGHT] = 0;
+    distanceMsg.obstacleDirections[DIR_FRONT_RIGHT] = 0;
   }
   if(bumperValueRF || bumperValueRB)
   {
-    obstacleDirections[DIR_RIGHT] = 0;
+    distanceMsg.obstacleDirections[DIR_RIGHT] = 0;
   }
   if(bumperValueRB || bumperValueBR)
   {
-    obstacleDirections[DIR_BACK_RIGHT] = 0;
+    distanceMsg.obstacleDirections[DIR_BACK_RIGHT] = 0;
   }
   if(bumperValueBR || bumperValueBL)
   {
-    obstacleDirections[DIR_BACK] = 0;
+    distanceMsg.obstacleDirections[DIR_BACK] = 0;
   }
   if(bumperValueBL || bumperValueLB)
   {
-    obstacleDirections[DIR_BACK_LEFT] = 0;
+    distanceMsg.obstacleDirections[DIR_BACK_LEFT] = 0;
   }
   if(bumperValueLB || bumperValueLF)
   {
-    obstacleDirections[DIR_LEFT] = 0;
+    distanceMsg.obstacleDirections[DIR_LEFT] = 0;
   }
   if(bumperValueLF || bumperValueFL)
   {
-    obstacleDirections[DIR_FRONT_LEFT] = 0;
+    distanceMsg.obstacleDirections[DIR_FRONT_LEFT] = 0;
   }
 }
 
@@ -329,28 +372,28 @@ void analizeLidarData() {
     // NOTE: angle increments counter-clockwise for the lidar
     if(angles[i] < 12.5 || angles[i] >= 337.5)
     {
-      obstacleDirections[DIR_FRONT] = min(distances[i], obstacleDirections[DIR_FRONT]);
+      distanceMsg.obstacleDirections[DIR_FRONT] = min(distances[i], distanceMsg.obstacleDirections[DIR_FRONT]);
     }else if(angles[i] >= 12.5 && angles[i] < 67.5)
     {
-      obstacleDirections[DIR_FRONT_LEFT] = min(distances[i], obstacleDirections[DIR_FRONT_LEFT]);
+      distanceMsg.obstacleDirections[DIR_FRONT_LEFT] = min(distances[i], distanceMsg.obstacleDirections[DIR_FRONT_LEFT]);
     }else if(angles[i] >= 67.5 && angles[i] < 112.5)
     {
-      obstacleDirections[DIR_LEFT] = min(distances[i], obstacleDirections[DIR_LEFT]);
+      distanceMsg.obstacleDirections[DIR_LEFT] = min(distances[i], distanceMsg.obstacleDirections[DIR_LEFT]);
     }else if(angles[i] >= 112.5 && angles[i] < 157.5)
     {
-      //obstacleDirections[DIR_BACK_LEFT] = min(distances[i], obstacleDirections[DIR_BACK_LEFT]);
+      //distanceMsg.obstacleDirections[DIR_BACK_LEFT] = min(distances[i], distanceMsg.obstacleDirections[DIR_BACK_LEFT]);
     }else if(angles[i] >= 157.5 && angles[i] < 202.5)
     {
-      //obstacleDirections[DIR_BACK] = min(distances[i], obstacleDirections[DIR_BACK]);
+      //distanceMsg.obstacleDirections[DIR_BACK] = min(distances[i], distanceMsg.obstacleDirections[DIR_BACK]);
     }else if(angles[i] >= 202.5 && angles[i] < 247.5)
     {
-      //obstacleDirections[DIR_BACK_RIGHT] = min(distances[i], obstacleDirections[DIR_BACK_RIGHT]);
+      //distanceMsg.obstacleDirections[DIR_BACK_RIGHT] = min(distances[i], distanceMsg.obstacleDirections[DIR_BACK_RIGHT]);
     }else if(angles[i] >= 247.5 && angles[i] < 292.5)
     {
-      obstacleDirections[DIR_RIGHT] = min(distances[i], obstacleDirections[DIR_RIGHT]);
+      distanceMsg.obstacleDirections[DIR_RIGHT] = min(distances[i], distanceMsg.obstacleDirections[DIR_RIGHT]);
     }else if(angles[i] >= 292.5 && angles[i] < 337.5)
     {
-      obstacleDirections[DIR_FRONT_RIGHT] = min(distances[i], obstacleDirections[DIR_FRONT_RIGHT]);
+      distanceMsg.obstacleDirections[DIR_FRONT_RIGHT] = min(distances[i], distanceMsg.obstacleDirections[DIR_FRONT_RIGHT]);
     }
   }
 }
@@ -382,64 +425,78 @@ void printCollectedLidarData()
 }
 
 void readOrionSerial() {
+  /*
   String incomingString = "";
-    while(Serial1.available() > 0)
-    {
-      incomingString += (char)Serial1.read();
-      delay(1);
-    }
-    Serial.print("From orion:");
-    Serial.println(incomingString);
+  
+  while(Serial1.available() > 0)
+  {
+    incomingString += (char)Serial1.read();
+    delay(1);
+  }
+  Serial.print("From orion:");
+  Serial.println(incomingString);
 
-    int beginCharIndex = incomingString.indexOf('<');
-    int endCharIndex = incomingString.indexOf('>');
-    if(beginCharIndex == -1 || endCharIndex == -1 || beginCharIndex >= endCharIndex)
-    {
-      Serial.print("<!> Ignored incoming serial due to wrong formatting of start and end characters. beginCharIndex=");
-      Serial.print(beginCharIndex);
-      Serial.print(" endCharIndex=");
-      Serial.println(endCharIndex);
-      return;
-    }
+  
+  int beginCharIndex = incomingString.indexOf('<');
+  int endCharIndex = incomingString.indexOf('>');
+  if(beginCharIndex == -1 || endCharIndex == -1 || beginCharIndex >= endCharIndex)
+  {
+    Serial.print("<!> Ignored incoming serial due to wrong formatting of start and end characters. beginCharIndex=");
+    Serial.print(beginCharIndex);
+    Serial.print(" endCharIndex=");
+    Serial.println(endCharIndex);
+    return;
+  }
 
-    // trim off begin and end characters
-    incomingString = incomingString.substring(beginCharIndex+1, endCharIndex);
+  // trim off begin and end characters
+  incomingString = incomingString.substring(beginCharIndex+1, endCharIndex);
 
 
-    int firstBreakCharIndex = incomingString.indexOf(';');
-    if(firstBreakCharIndex == -1)
-    {
-      Serial.println("<!> Did not find first break character (;).");
-      return;
-    }
-    int secondBreakCharIndex = incomingString.indexOf(';', firstBreakCharIndex+1);
-    if(secondBreakCharIndex == -1)
-    {
-      Serial.println("<!> Did not find second break character (;).");
-      return;
-    }
+  int firstBreakCharIndex = incomingString.indexOf(';');
+  if(firstBreakCharIndex == -1)
+  {
+    Serial.println("<!> Did not find first break character (;).");
+    return;
+  }
+  int secondBreakCharIndex = incomingString.indexOf(';', firstBreakCharIndex+1);
+  if(secondBreakCharIndex == -1)
+  {
+    Serial.println("<!> Did not find second break character (;).");
+    return;
+  }
 
-    
-    String firstValue = incomingString.substring(0, firstBreakCharIndex);
-    String secondValue = incomingString.substring(firstBreakCharIndex+1, secondBreakCharIndex);
-    String thirdValue = incomingString.substring(secondBreakCharIndex+1);
+  
+  String firstValue = incomingString.substring(0, firstBreakCharIndex);
+  String secondValue = incomingString.substring(firstBreakCharIndex+1, secondBreakCharIndex);
+  String thirdValue = incomingString.substring(secondBreakCharIndex+1);
 
-    Serial.println("("+incomingString.substring(firstBreakCharIndex+1, secondBreakCharIndex)+")");
-    int servoPitchValue = incomingString.substring(0, firstBreakCharIndex).toInt();
-    int servoYawValue = incomingString.substring(firstBreakCharIndex+1, secondBreakCharIndex).toInt();
-    int servoHeightValue = incomingString.substring(secondBreakCharIndex+1).toInt();
+  Serial.println("("+incomingString.substring(firstBreakCharIndex+1, secondBreakCharIndex)+")");
+  int servoPitchValue = incomingString.substring(0, firstBreakCharIndex).toInt();
+  int servoYawValue = incomingString.substring(firstBreakCharIndex+1, secondBreakCharIndex).toInt();
+  int servoHeightValue = incomingString.substring(secondBreakCharIndex+1).toInt();
 
-    servoPitchValue = min(max(servoPitchValue, servoPitchMin), servoPitchMax);
-    servoYawValue = min(max(servoYawValue, servoYawMin), servoYawMax);
-    servoHeightValue = min(max(servoHeightValue, servoHeightMin), servoHeightMax);
+  servoPitchValue = min(max(servoPitchValue, servoPitchMin), servoPitchMax);
+  servoYawValue = min(max(servoYawValue, servoYawMin), servoYawMax);
+  servoHeightValue = min(max(servoHeightValue, servoHeightMin), servoHeightMax);
+  */
 
-    Serial.println("Writing servos:");
-    Serial.print(servoPitchValue);
-    Serial.println(" // ");
-    Serial.print(servoYawValue);
-    Serial.println(" // ");
-    Serial.println(servoHeightValue);
-    servoPitch.write(servoPitchValue);
-    servoYaw.write(servoYawValue);
-    servoHeight.write(servoHeightValue);
+  if(Serial1.available() < (int) sizeof(teensyOrionServoMsgType)) {
+    return;
+  }
+  Serial1.readBytes((char *)&servoMsg, sizeof(teensyOrionServoMsgType) );
+  
+  // limit the servo values to [0, 180] range
+  servoMsg.pitch = min(max(servoMsg.pitch, 0), 180);
+  servoMsg.yaw = min(max(servoMsg.yaw, 0), 180);
+  servoMsg.height = min(max(servoMsg.height, 0), 180);
+
+  Serial.print("Writing servos:");
+  Serial.print(servoMsg.pitch);
+  Serial.print(" // ");
+  Serial.print(servoMsg.yaw);
+  Serial.print(" // ");
+  Serial.println(servoMsg.height);
+  servoPitch.write(servoMsg.pitch);
+  servoYaw.write(servoMsg.yaw);
+  servoHeight.write(servoMsg.height);
 }
