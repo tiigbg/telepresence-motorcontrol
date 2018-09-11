@@ -26,14 +26,18 @@ unsigned long lastSerialSend = millis();
 unsigned long maxSerialSendTime = 500;
 bool serialSynced = false;
 
+#define CONFIRM_CORRECT 123
+#define CONFIRM_WRONG 456
 struct teensyOrionServoMsgType {
+  uint16_t confirm = CONFIRM_CORRECT;
   uint16_t pitch = 90;
   uint16_t yaw = 90;
   uint16_t height = 90;
 } servoMsg;
 
 struct teensyOrionDistanceMsgType {
-  int obstacleDirections[8] = {MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE};
+  uint16_t confirm = CONFIRM_CORRECT;
+  uint16_t obstacleDirections[8] = {MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE};
 } distanceMsg;
 
 
@@ -126,29 +130,8 @@ void setup() {
   // ledOff();
   // resetLidarValues();
 
-  // wait for sync char from Orion
-  Serial.print("Waiting for Orion sync char");
-  while(!serialSynced) {
-    while(Serial1.available()) {
-      uint8_t c = Serial1.read();
-      if(c == 's') {
-        serialSynced = true;
-      }
-    }
-    Serial.print(".");
-    delay(300);
-    blink(300);
-  }
-  // empty the buffer
-  delay(10);
-  while(Serial1.available()> 0) {
-    Serial1.read();
-  }
-  Serial.println("Synced.");
-  // Send sync char to Orion
+  syncWithOrion();
 
-  Serial1.write('s');
-  
   Serial.println("Teensy started ok");
   blink(200);
   blink(200);
@@ -210,6 +193,10 @@ void printDistances() {
   Serial.println("}");
   Serial1.println("}");
   */
+ Serial.println("Sending");
+ Serial.println(distanceMsg.confirm);
+ Serial.print("sending size:");
+ Serial.println(sizeof(teensyOrionDistanceMsgType));
  Serial1.write((const char *) &distanceMsg, sizeof(teensyOrionDistanceMsgType));
 
 }
@@ -485,6 +472,24 @@ void readOrionSerial() {
   }
   Serial1.readBytes((char *)&servoMsg, sizeof(teensyOrionServoMsgType) );
   
+  if(servoMsg.confirm != CONFIRM_CORRECT)
+  {
+    Serial.print("<!> Out of sync! (Confirm=");
+    Serial.print(servoMsg.confirm);
+    Serial.println(")");
+    // we are out of sync! Go into re-sync mode.
+    serialSynced = false;
+    // Send a reply with a wrong confirm value, to make sure orion also goes into re-sync mode
+    distanceMsg.confirm = CONFIRM_WRONG;
+    delay(1000);
+    Serial.println("Sending a wrong response");
+    Serial1.write((const char *) &distanceMsg, sizeof(teensyOrionDistanceMsgType));
+    delay(1000);
+    syncWithOrion();
+
+    return;
+  }
+
   // limit the servo values to [0, 180] range
   servoMsg.pitch = min(max(servoMsg.pitch, 0), 180);
   servoMsg.yaw = min(max(servoMsg.yaw, 0), 180);
@@ -499,4 +504,32 @@ void readOrionSerial() {
   servoPitch.write(servoMsg.pitch);
   servoYaw.write(servoMsg.yaw);
   servoHeight.write(servoMsg.height);
+}
+
+void syncWithOrion() {
+  // wait for sync char from Orion
+  Serial.print("Waiting for Orion sync char");
+  while(!serialSynced) {
+    while(Serial1.available()) {
+      uint8_t c = Serial1.read();
+      if(c == 's') {
+        serialSynced = true;
+      }
+    }
+    Serial.print(".");
+    delay(300);
+    blink(300);
+  }
+  // empty the buffer
+  delay(10);
+  while(Serial1.available()> 0) {
+    Serial1.read();
+  }
+  delay(10);
+  // Send sync char to Orion
+  Serial1.write('s');
+  distanceMsg.confirm = CONFIRM_CORRECT;
+  // Make sure we don't send over serial immediately after
+  lastSerialSend = millis();
+  Serial.println("Synced.");
 }

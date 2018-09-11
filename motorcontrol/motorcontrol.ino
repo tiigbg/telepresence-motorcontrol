@@ -29,7 +29,10 @@ signed char directionAdjustment[4]={-1,1,-1,1};
 
 bool serialSynced = false;
 
+#define CONFIRM_CORRECT 123
+#define CONFIRM_WRONG 456
 struct teensyOrionServoMsgType {
+  uint16_t confirm = CONFIRM_CORRECT;
   uint16_t pitch = 90;
   uint16_t yaw = 90;
   uint16_t height = 90;
@@ -50,7 +53,8 @@ struct teensyOrionServoMsgType {
 #define DIR_FRONT_LEFT 7
 
 struct teensyOrionDistanceMsgType {
-  int obstacleDirections[8] = {MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE};
+  uint16_t confirm = CONFIRM_CORRECT;
+  uint16_t obstacleDirections[8] = {MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE};
 } distanceMsg;
 
 // === ===
@@ -70,20 +74,7 @@ void setup()
   
   
   teensySerial.begin(9600);
-  Serial.print("Waiting for sync with Teensy");
-  while(!serialSynced) {
-    teensySerial.write('s');
-    Serial.print(".");
-    delay(100);
-    while(teensySerial.available()) {
-      uint8_t c = teensySerial.read();
-      if(c == 's') {
-        serialSynced = true;
-      }
-    }
-  }
-  Serial.println("Synced.");
-
+  syncWithTeensy();
 
   Serial.println("Makeblock started ok");
   Serial.println("Example command:");
@@ -350,4 +341,54 @@ void readTeensySerial() {
     return;
   }
   teensySerial.readBytes((char *) &distanceMsg, sizeof(teensyOrionDistanceMsgType));
+
+  if(distanceMsg.confirm != CONFIRM_CORRECT) {
+    Serial.print("<!> Out of sync! (Confirm=");
+    Serial.print(distanceMsg.confirm);
+    Serial.println(")");
+    // We are out of sync!
+    serialSynced = false;
+    // Send a reply with a wrong confirm value, to make sure orion also goes into re-sync mode
+    servoMsg.confirm = CONFIRM_WRONG;
+    delay(1000);
+    Serial.println("Sending a wrong response");
+    teensySerial.write((const char *) &servoMsg, sizeof(teensyOrionServoMsgType));
+    delay(1000);
+    // empty the incoming serial buffer
+    while(teensySerial.available()> 0) {
+      teensySerial.read();
+    }
+    syncWithTeensy();
+    return;
+  }
+  //Serial.println("Received correct");
+}
+
+void syncWithTeensy() {
+  Serial.println("Preparing to sync. Emptying serial input buffer.");
+  while(teensySerial.available()> 0) {
+    teensySerial.read();
+  }
+  
+  Serial.print("Waiting for sync with Teensy");
+  while(!serialSynced) {
+    teensySerial.write('s');
+    Serial.print(".");
+    delay(100);
+    while(teensySerial.available()) {
+      uint8_t c = teensySerial.read();
+      if(c == 's') {
+        serialSynced = true;
+      }
+    }
+  }
+  // empty the buffer
+  delay(100);
+  Serial.println("Emptying input buffer.");
+  while(teensySerial.available()> 0) {
+    teensySerial.read();
+  }
+  Serial.println("Synced.");
+  servoMsg.confirm = CONFIRM_CORRECT;
+  Serial.println(teensySerial.available());
 }
