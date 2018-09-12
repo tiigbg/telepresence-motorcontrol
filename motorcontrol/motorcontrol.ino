@@ -11,15 +11,18 @@ MeEncoderNew motor4(0x0a, SLOT2); // back left
 
 #define MAXSPEED 150
 #define DEFAULTSPEED 1
+#define MAX_ROTATIONSPEED 0.5
 #define COMMAND_TIMEOUT 300 // if no command is received within this amount of ms, stop motors
 #define MOTOR_UPDATE_TIME 20  // minimal ms between motor updates
 #define TEENSY_COMMAND_TIME 250 // minimal ms between commands to teensy
 
 float moveSpeed = DEFAULTSPEED;
 float motor1Speed = 0, motor2Speed = 0, motor3Speed = 0, motor4Speed = 0;
-float motor1SpeedTarget = 0, motor2SpeedTarget = 0, motor3SpeedTarget = 0, motor4SpeedTarget = 0; 
+float driveAngleTarget = 0.0, driveSpeedTarget = 0.0, rotationSpeedTarget = 0.0;
+float driveAngle = 0.0, driveSpeed = 0.0, rotationSpeed = 0.0;
 
-float motorFilterQ = 0.05; // adjusts how fast the motor will get to its actual target speed
+float driveFilterQ = 0.05; // adjusts how fast the robot will get to its actual target drive speed
+float rotationFilterQ = 0.05; // adjusts how fast the robot will get to its actual target rotation speed
 boolean motorsEnabled = true;
 unsigned long lastMotorUpdate;
 unsigned long lastCommandTime;
@@ -113,10 +116,10 @@ void loop()
 
 void adjustDirections()
 {
-  motor1SpeedTarget = moveSpeed*directionAdjustment[0];
-  motor2SpeedTarget = moveSpeed*directionAdjustment[1];
-  motor3SpeedTarget = moveSpeed*directionAdjustment[2];
-  motor4SpeedTarget = moveSpeed*directionAdjustment[3];
+  motor1Speed = moveSpeed*directionAdjustment[0];
+  motor2Speed = moveSpeed*directionAdjustment[1];
+  motor3Speed = moveSpeed*directionAdjustment[2];
+  motor4Speed = moveSpeed*directionAdjustment[3];
 }
 
 void speedUp()
@@ -135,15 +138,17 @@ void speedDown()
 }
 void stopAll()
 {
+  driveAngle = 0.0;
+  driveSpeed = 0.0;
+  rotationSpeed = 0.0;
+  driveAngleTarget = 0.0;
+  driveSpeedTarget = 0.0;
+  rotationSpeedTarget = 0.0;
+
   motor1Speed = 0;
   motor2Speed = 0;
   motor3Speed = 0;
   motor4Speed = 0;
-  
-  motor1SpeedTarget = 0;
-  motor2SpeedTarget = 0;
-  motor3SpeedTarget = 0;
-  motor4SpeedTarget = 0;
   
   motor1.runSpeed(0,0);
   motor2.runSpeed(0,0);
@@ -162,17 +167,16 @@ void stopAll()
 // rotation: [-1,1]
 //    -1 = turn maximum left
 //    1 = turn maximum right
-void calculateSpeeds(float myAngle, float mySpeed, float myRotation)
+void calculateMotorSpeeds()
 {
-  // flipping direction on the rotation, because we want right turn to be 1 and left turn -1
-  myRotation = myRotation * -1;
+  
   // TODO FIXME There seems to be some kind of rounding issue where sin and cos don't return the same value 
   // when they should (for example when driving straight forward, all motors should get equal, now they
   // differ with 1
-  float motor1multiplier = mySpeed * sin(myAngle + PI / 4.0) + myRotation;
-  float motor2multiplier = mySpeed * cos(myAngle + PI / 4.0) - myRotation;
-  float motor3multiplier = mySpeed * cos(myAngle + PI / 4.0) + myRotation;
-  float motor4multiplier = mySpeed * sin(myAngle + PI / 4.0) - myRotation;
+  float motor1multiplier = driveSpeed * sin(driveAngle + PI / 4.0) - rotationSpeed;
+  float motor2multiplier = driveSpeed * cos(driveAngle + PI / 4.0) + rotationSpeed;
+  float motor3multiplier = driveSpeed * cos(driveAngle + PI / 4.0) - rotationSpeed;
+  float motor4multiplier = driveSpeed * sin(driveAngle + PI / 4.0) + rotationSpeed;
 
   // scale all multipliers based on the biggest, to keep them inside the [1,-1] range
   float maxMultiplier = max(fabs(motor1multiplier),
@@ -189,10 +193,10 @@ void calculateSpeeds(float myAngle, float mySpeed, float myRotation)
     motor4multiplier = motor4multiplier / maxMultiplier;
   }
   
-  motor1SpeedTarget = directionAdjustment[0] * moveSpeed * motor1multiplier;
-  motor2SpeedTarget = directionAdjustment[1] * moveSpeed * motor2multiplier;
-  motor3SpeedTarget = directionAdjustment[2] * moveSpeed * motor3multiplier;
-  motor4SpeedTarget = directionAdjustment[3] * moveSpeed * motor4multiplier;
+  motor1Speed = directionAdjustment[0] * moveSpeed * motor1multiplier;
+  motor2Speed = directionAdjustment[1] * moveSpeed * motor2multiplier;
+  motor3Speed = directionAdjustment[2] * moveSpeed * motor3multiplier;
+  motor4Speed = directionAdjustment[3] * moveSpeed * motor4multiplier;
 
   // Serial.print("multipliers   1:");
   // Serial.print(motor1multiplier);
@@ -202,16 +206,6 @@ void calculateSpeeds(float myAngle, float mySpeed, float myRotation)
   // Serial.print(motor3multiplier);
   // Serial.print(" 4:");
   // Serial.println(motor4multiplier);
-  
-  // Serial.print("speeds        1:");
-  // Serial.print(motor1SpeedTarget);
-  // Serial.print(" 2:");
-  // Serial.print(motor2SpeedTarget);
-  // Serial.print(" 3:");
-  // Serial.print(motor3SpeedTarget);
-  // Serial.print(" 4:");
-  // Serial.println(motor4SpeedTarget);
-
 }
 
 void readTeensySerial() {
@@ -309,11 +303,13 @@ void readWebSerial() {
   // make sure received values are in correct range
   webMsg.driveAngle = fmod((fmod(webMsg.driveAngle,float(2.0*PI)) + 2.0*PI),float(2.0*PI));
   webMsg.driveSpeed = max(min(webMsg.driveSpeed, 1), -1);
-  webMsg.rotationSpeed = max(min(webMsg.rotationSpeed, 1), -1);
+  webMsg.rotationSpeed = max(min(webMsg.rotationSpeed, MAX_ROTATIONSPEED), -1.0*MAX_ROTATIONSPEED);
 
   lastCommandTime = millis();
   
-  calculateSpeeds(webMsg.driveAngle, webMsg.driveSpeed, webMsg.rotationSpeed);
+  driveAngleTarget = webMsg.driveAngle;
+  driveSpeedTarget = webMsg.driveSpeed;
+  rotationSpeedTarget = webMsg.rotationSpeed;
 
   servoMsg.pitch = webMsg.pitch;
   servoMsg.yaw = webMsg.yaw;
@@ -334,12 +330,24 @@ void updateMotorSpeeds() {
   }
   else if(millis() > lastMotorUpdate + MOTOR_UPDATE_TIME) {
     lastMotorUpdate += MOTOR_UPDATE_TIME;
-    // lowpass filter
+    // lowpass filters
     // current = (1-q)*current+q*target
-    motor1Speed = (1-motorFilterQ)*motor1Speed + motorFilterQ * motor1SpeedTarget;
-    motor2Speed = (1-motorFilterQ)*motor2Speed + motorFilterQ * motor2SpeedTarget;
-    motor3Speed = (1-motorFilterQ)*motor3Speed + motorFilterQ * motor3SpeedTarget;
-    motor4Speed = (1-motorFilterQ)*motor4Speed + motorFilterQ * motor4SpeedTarget;
+    // driveAngle = (1-driveFilterQ)*driveAngle + driveFilterQ * driveAngleTarget;
+    driveAngle = driveAngleTarget;
+    driveSpeed = (1-driveFilterQ)*driveSpeed + driveFilterQ * driveSpeedTarget;
+    rotationSpeed = (1-rotationFilterQ)*rotationSpeed + rotationFilterQ * rotationSpeedTarget;
+
+    // Serial.print("    ");
+    // Serial.print(driveAngle);
+    // Serial.print("    ");
+    // Serial.print(driveSpeed);
+    // Serial.print("    ");
+    // Serial.print(rotationSpeed);
+    // Serial.print("    (");
+    // Serial.print(rotationSpeedTarget);
+    // Serial.println(")");
+
+    calculateMotorSpeeds();
 
     motor1.runSpeed(motor1Speed,0);
     motor2.runSpeed(motor2Speed,0);
