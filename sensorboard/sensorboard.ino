@@ -29,15 +29,15 @@ bool serialSynced = false;
 #define CONFIRM_CORRECT 123
 #define CONFIRM_WRONG 456
 struct teensyOrionServoMsgType {
-  uint16_t confirm = CONFIRM_CORRECT;
   uint16_t pitch = 90;
   uint16_t yaw = 90;
   uint16_t height = 90;
+  uint16_t confirm = CONFIRM_CORRECT;
 } servoMsg;
 
 struct teensyOrionDistanceMsgType {
-  uint16_t confirm = CONFIRM_CORRECT;
   uint16_t obstacleDirections[8] = {MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE};
+  uint16_t confirm = CONFIRM_CORRECT;
 } distanceMsg;
 
 
@@ -144,17 +144,17 @@ void loop() {
     readOrionSerial();
   }
 
-  if(Serial.available() > 0)
-  {
-    String incomingString = "";
-    while(Serial.available() > 0)
-    {
-      incomingString += (char)Serial.read();
-      delay(1);
-    }
-    Serial.print("Received string:");
-    Serial.println(incomingString);
-  }
+  // if(Serial.available() > 0)
+  // {
+  //   String incomingString = "";
+  //   while(Serial.available() > 0)
+  //   {
+  //     incomingString += (char)Serial.read();
+  //     delay(1);
+  //   }
+  //   Serial.print("Received string:");
+  //   Serial.println(incomingString);
+  // }
 
   // reset readings
   for(int i = 0; i < 8; i++) {
@@ -194,9 +194,9 @@ void printDistances() {
   Serial1.println("}");
   */
  Serial.println("Sending");
- Serial.println(distanceMsg.confirm);
- Serial.print("sending size:");
- Serial.println(sizeof(teensyOrionDistanceMsgType));
+//  Serial.println(distanceMsg.confirm);
+//  Serial.print("sending size:");
+//  Serial.println(sizeof(teensyOrionDistanceMsgType));
  Serial1.write((const char *) &distanceMsg, sizeof(teensyOrionDistanceMsgType));
 
 }
@@ -412,61 +412,6 @@ void printCollectedLidarData()
 }
 
 void readOrionSerial() {
-  /*
-  String incomingString = "";
-  
-  while(Serial1.available() > 0)
-  {
-    incomingString += (char)Serial1.read();
-    delay(1);
-  }
-  Serial.print("From orion:");
-  Serial.println(incomingString);
-
-  
-  int beginCharIndex = incomingString.indexOf('<');
-  int endCharIndex = incomingString.indexOf('>');
-  if(beginCharIndex == -1 || endCharIndex == -1 || beginCharIndex >= endCharIndex)
-  {
-    Serial.print("<!> Ignored incoming serial due to wrong formatting of start and end characters. beginCharIndex=");
-    Serial.print(beginCharIndex);
-    Serial.print(" endCharIndex=");
-    Serial.println(endCharIndex);
-    return;
-  }
-
-  // trim off begin and end characters
-  incomingString = incomingString.substring(beginCharIndex+1, endCharIndex);
-
-
-  int firstBreakCharIndex = incomingString.indexOf(';');
-  if(firstBreakCharIndex == -1)
-  {
-    Serial.println("<!> Did not find first break character (;).");
-    return;
-  }
-  int secondBreakCharIndex = incomingString.indexOf(';', firstBreakCharIndex+1);
-  if(secondBreakCharIndex == -1)
-  {
-    Serial.println("<!> Did not find second break character (;).");
-    return;
-  }
-
-  
-  String firstValue = incomingString.substring(0, firstBreakCharIndex);
-  String secondValue = incomingString.substring(firstBreakCharIndex+1, secondBreakCharIndex);
-  String thirdValue = incomingString.substring(secondBreakCharIndex+1);
-
-  Serial.println("("+incomingString.substring(firstBreakCharIndex+1, secondBreakCharIndex)+")");
-  int servoPitchValue = incomingString.substring(0, firstBreakCharIndex).toInt();
-  int servoYawValue = incomingString.substring(firstBreakCharIndex+1, secondBreakCharIndex).toInt();
-  int servoHeightValue = incomingString.substring(secondBreakCharIndex+1).toInt();
-
-  servoPitchValue = min(max(servoPitchValue, servoPitchMin), servoPitchMax);
-  servoYawValue = min(max(servoYawValue, servoYawMin), servoYawMax);
-  servoHeightValue = min(max(servoHeightValue, servoHeightMin), servoHeightMax);
-  */
-
   if(Serial1.available() < (int) sizeof(teensyOrionServoMsgType)) {
     return;
   }
@@ -481,10 +426,10 @@ void readOrionSerial() {
     serialSynced = false;
     // Send a reply with a wrong confirm value, to make sure orion also goes into re-sync mode
     distanceMsg.confirm = CONFIRM_WRONG;
-    delay(1000);
+    delay(100);
     Serial.println("Sending a wrong response");
     Serial1.write((const char *) &distanceMsg, sizeof(teensyOrionDistanceMsgType));
-    delay(1000);
+    delay(100);
     syncWithOrion();
 
     return;

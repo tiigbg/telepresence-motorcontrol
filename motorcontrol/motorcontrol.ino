@@ -10,16 +10,21 @@ MeEncoderNew motor3(0x0a, SLOT1); // back right
 MeEncoderNew motor4(0x0a, SLOT2); // back left
 
 #define MAXSPEED 150
-#define DEFAULTSPEED 10
-#define COMMAND_TIMEOUT 300
+#define DEFAULTSPEED 1
+#define COMMAND_TIMEOUT 300 // if no command is received within this amount of ms, stop motors
+#define MOTOR_UPDATE_TIME 20  // minimal ms between motor updates
+#define TEENSY_COMMAND_TIME 250 // minimal ms between commands to teensy
 
-int moveSpeed = DEFAULTSPEED;
+float moveSpeed = DEFAULTSPEED;
 float motor1Speed = 0, motor2Speed = 0, motor3Speed = 0, motor4Speed = 0;
 float motor1SpeedTarget = 0, motor2SpeedTarget = 0, motor3SpeedTarget = 0, motor4SpeedTarget = 0; 
 
-float motorFilterQ = 0.04; // adjusts how fast the motor will get to its actual target speed
+float motorFilterQ = 0.05; // adjusts how fast the motor will get to its actual target speed
 boolean motorsEnabled = true;
+unsigned long lastMotorUpdate;
 unsigned long lastCommandTime;
+unsigned long lastTeensyCommand;
+boolean skippedLastTeensyCommand = false;
 
 // This array is to set motor's direction.
 // Change the symbol to change the motor's direction
@@ -27,15 +32,26 @@ signed char directionAdjustment[4]={-1,1,-1,1};
 
 // === Serial ===
 
-bool serialSynced = false;
-
 #define CONFIRM_CORRECT 123
 #define CONFIRM_WRONG 456
-struct teensyOrionServoMsgType {
-  uint16_t confirm = CONFIRM_CORRECT;
+
+struct webSerialMsgType {
+  float driveAngle = 0.0;
+  float driveSpeed = 0.0;
+  float rotationSpeed = 0.0;
   uint16_t pitch = 90;
   uint16_t yaw = 90;
   uint16_t height = 90;
+  uint16_t confirm = CONFIRM_CORRECT;
+} webMsg;
+
+bool serialTeensySynced = false;
+
+struct teensyOrionServoMsgType {
+  uint16_t pitch = 90;
+  uint16_t yaw = 90;
+  uint16_t height = 90;
+  uint16_t confirm = CONFIRM_CORRECT;
 } servoMsg;
 
 // this tracks how far away an obstacle is detected
@@ -53,15 +69,15 @@ struct teensyOrionServoMsgType {
 #define DIR_FRONT_LEFT 7
 
 struct teensyOrionDistanceMsgType {
-  uint16_t confirm = CONFIRM_CORRECT;
   uint16_t obstacleDirections[8] = {MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE};
+  uint16_t confirm = CONFIRM_CORRECT;
 } distanceMsg;
 
 // === ===
 
 void setup()
 {
-  Serial.begin(115200);
+  Serial.begin(9600);
   Serial.println("Makeblock starting..");
   motor1.begin();
   //  motor2.begin(); // not sure why this is commented out,
@@ -70,6 +86,7 @@ void setup()
   //  motor4.begin();
   delay(10);
   stopAll();
+  lastMotorUpdate = millis();
   
   
   
@@ -77,8 +94,6 @@ void setup()
   syncWithTeensy();
 
   Serial.println("Makeblock started ok");
-  Serial.println("Example command:");
-  Serial.println("<0;0;0;90;90;90>");
 }
 
 
@@ -86,141 +101,14 @@ void setup()
 void loop()
 {
   readTeensySerial();
-
-
-  if(Serial.available() > 0)  // example: <0;0;0;90;90;90>
-  {
-    String incomingString = "";
-    while(Serial.available() > 0)
-    {
-      incomingString += (char)Serial.read();
-      delay(1);
-    }
-    Serial.print("Received string:");
-    Serial.println(incomingString);
-
-    int beginCharIndex = incomingString.indexOf('<');
-    int endCharIndex = incomingString.indexOf('>');
-    if(beginCharIndex == -1 || endCharIndex == -1 || beginCharIndex >= endCharIndex)
-    {
-      Serial.print("<!> Ignored incoming serial due to wrong formatting of start and end characters. beginCharIndex=");
-      Serial.print(beginCharIndex);
-      Serial.print(" endCharIndex=");
-      Serial.println(endCharIndex);
-      return;
-    }
-    // trim off begin and end characters
-    incomingString = incomingString.substring(beginCharIndex+1, endCharIndex);
-    
-    int firstBreakCharIndex = incomingString.indexOf(';');
-    if(firstBreakCharIndex == -1)
-    {
-      Serial.println("<!> Did not find first break character (;).");
-      return;
-    }
-    int secondBreakCharIndex = incomingString.indexOf(';', firstBreakCharIndex+1);
-    if(secondBreakCharIndex == -1)
-    {
-      Serial.println("<!> Did not find second break character (;).");
-      return;
-    }
-    int thirdBreakCharIndex = incomingString.indexOf(';', secondBreakCharIndex+1);
-    if(thirdBreakCharIndex == -1)
-    {
-      Serial.println("<!> Did not find third break character (;).");
-      //return;
-    }
-    String firstValue = incomingString.substring(0, firstBreakCharIndex);
-    String secondValue = incomingString.substring(firstBreakCharIndex+1, secondBreakCharIndex);
-    String thirdValue = "";
-    if(thirdBreakCharIndex == -1)
-    {
-      thirdValue = incomingString.substring(secondBreakCharIndex+1);
-    }else {
-      thirdValue = incomingString.substring(secondBreakCharIndex+1, thirdBreakCharIndex);
-    }
-    
-    float newDirection = firstValue.toFloat();
-    float newSpeed = secondValue.toFloat();
-    float newRotation = thirdValue.toFloat();
-
-    // Serial.print("Floats: ");
-    // Serial.print(newDirection);
-    // Serial.print(" // ");
-    // Serial.print(newSpeed);
-    // Serial.print(" // ");
-    // Serial.println(newRotation);
-
-    // make sure arguments are within the boundaries
-    newDirection = fmod((fmod(newDirection,float(2.0*PI)) + 2.0*PI),float(2.0*PI));
-    newSpeed = max(min(newSpeed, 1), -1);
-    newRotation = max(min(newRotation, 1), -1);
-
-    Serial.print("Floats: ");
-    Serial.print(newDirection);
-    Serial.print(" // ");
-    Serial.print(newSpeed);
-    Serial.print(" // ");
-    Serial.println(newRotation);
-
-
-    lastCommandTime = millis();
-    
-    calculateSpeeds(newDirection, newSpeed, newRotation);
-
-    if(thirdBreakCharIndex != -1)
-    {
-      /*
-      String fourthValue = incomingString.substring(thirdBreakCharIndex+1);
-      Serial.println("To Teensy:<"+fourthValue+">");
-      teensySerial.println("<"+fourthValue+">");
-      */
-      int fourthBreakCharIndex = incomingString.indexOf(';', thirdBreakCharIndex+1);
-      int fifthBreakCharIndex = incomingString.indexOf(';', fourthBreakCharIndex+1);
-
-      if(fourthBreakCharIndex == -1 || fifthBreakCharIndex == -1) {
-        return;
-      }
-      String fourthValue = incomingString.substring(thirdBreakCharIndex+1, fourthBreakCharIndex);
-      String fifthValue = incomingString.substring(fourthBreakCharIndex+1, fifthBreakCharIndex);
-      String sixthValue = incomingString.substring(fifthBreakCharIndex+1);
-
-      servoMsg.pitch = fourthValue.toInt();
-      servoMsg.yaw = fifthValue.toInt();
-      servoMsg.height = sixthValue.toInt();
-
-      teensySerial.write((const char *) &servoMsg, sizeof(teensyOrionServoMsgType));
-      Serial.print("writing to teensy:");
-      Serial.print(servoMsg.pitch);
-      Serial.print(" // ");
-      Serial.print(servoMsg.yaw);
-      Serial.print(" // ");
-      Serial.println(servoMsg.height);
-    }
+  readWebSerial();
+  updateMotorSpeeds();
+  // send a delayed teensy command
+  if(skippedLastTeensyCommand && millis() > lastTeensyCommand + TEENSY_COMMAND_TIME) {
+    lastTeensyCommand = millis();
+    skippedLastTeensyCommand = false;
+    teensySerial.write((const char *) &servoMsg, sizeof(teensyOrionServoMsgType));
   }
-
-  if(motorsEnabled && millis() > lastCommandTime + COMMAND_TIMEOUT)
-  {
-    stopAll();
-  }
-  else{
-    // lowpass filter
-    // current = (1-q)*current+q*target
-    motor1Speed = (1-motorFilterQ)*motor1Speed + motorFilterQ * motor1SpeedTarget;
-    motor2Speed = (1-motorFilterQ)*motor2Speed + motorFilterQ * motor2SpeedTarget;
-    motor3Speed = (1-motorFilterQ)*motor3Speed + motorFilterQ * motor3SpeedTarget;
-    motor4Speed = (1-motorFilterQ)*motor4Speed + motorFilterQ * motor4SpeedTarget;
-
-    if(motorsEnabled)
-    {
-      //Serial.println(motor1Speed);
-      motor1.runSpeed(motor1Speed,0);
-      motor2.runSpeed(motor2Speed,0);
-      motor3.runSpeed(motor3Speed,0);
-      motor4.runSpeed(motor4Speed,0);
-    }
-  }
-
 } // end of loop()
 
 void adjustDirections()
@@ -257,20 +145,10 @@ void stopAll()
   motor3SpeedTarget = 0;
   motor4SpeedTarget = 0;
   
-
   motor1.runSpeed(0,0);
   motor2.runSpeed(0,0);
   motor3.runSpeed(0,0);
   motor4.runSpeed(0,0);
-}
-
-void disableMotors()
-{
-  motorsEnabled = false;
-  motor1.runSpeed(0,1);
-  motor2.runSpeed(0,1);
-  motor3.runSpeed(0,1);
-  motor4.runSpeed(0,1);
 }
 
 // angle to translate at: [0, 2pi]
@@ -343,17 +221,18 @@ void readTeensySerial() {
   teensySerial.readBytes((char *) &distanceMsg, sizeof(teensyOrionDistanceMsgType));
 
   if(distanceMsg.confirm != CONFIRM_CORRECT) {
-    Serial.print("<!> Out of sync! (Confirm=");
+    stopAll();
+    Serial.print("<!> Out of sync with teensy! (Confirm=");
     Serial.print(distanceMsg.confirm);
     Serial.println(")");
     // We are out of sync!
-    serialSynced = false;
+    serialTeensySynced = false;
     // Send a reply with a wrong confirm value, to make sure orion also goes into re-sync mode
     servoMsg.confirm = CONFIRM_WRONG;
-    delay(1000);
+    delay(100);
     Serial.println("Sending a wrong response");
     teensySerial.write((const char *) &servoMsg, sizeof(teensyOrionServoMsgType));
-    delay(1000);
+    delay(100);
     // empty the incoming serial buffer
     while(teensySerial.available()> 0) {
       teensySerial.read();
@@ -371,24 +250,100 @@ void syncWithTeensy() {
   }
   
   Serial.print("Waiting for sync with Teensy");
-  while(!serialSynced) {
+  while(!serialTeensySynced) {
     teensySerial.write('s');
     Serial.print(".");
     delay(100);
     while(teensySerial.available()) {
       uint8_t c = teensySerial.read();
       if(c == 's') {
-        serialSynced = true;
+        serialTeensySynced = true;
       }
     }
   }
   // empty the buffer
-  delay(100);
+  delay(10);
   Serial.println("Emptying input buffer.");
   while(teensySerial.available()> 0) {
     teensySerial.read();
   }
   Serial.println("Synced.");
   servoMsg.confirm = CONFIRM_CORRECT;
-  Serial.println(teensySerial.available());
+}
+
+void readWebSerial() {
+  if(Serial.available() < (int) sizeof(webSerialMsgType)) {
+    return;
+  }
+  Serial.readBytes((char *) &webMsg, sizeof(webSerialMsgType));
+
+  
+  if(webMsg.confirm != CONFIRM_CORRECT) {
+    stopAll();
+    Serial.print("<!> Out of sync with webSerial! (Confirm=");
+    Serial.print(webMsg.confirm);
+    Serial.println(")");
+    delay(500);
+    // empty the input buffer from web serial
+    // this is a ugly hack which might help to get it synced again?
+    // TODO something better, or be sure about if this is ok.
+    while(Serial.available() > 0) {
+      Serial.read();
+    }
+    return;
+  }
+
+  Serial.print("Received:");
+  Serial.print(webMsg.driveAngle);
+  Serial.print("  //  ");
+  Serial.print(webMsg.driveSpeed);
+  Serial.print("  //  ");
+  Serial.print(webMsg.rotationSpeed);
+  Serial.print("  \\  ");
+  Serial.print(webMsg.pitch);
+  Serial.print("  //  ");
+  Serial.print(webMsg.yaw);
+  Serial.print("  //  ");
+  Serial.println(webMsg.height);
+
+  // make sure received values are in correct range
+  webMsg.driveAngle = fmod((fmod(webMsg.driveAngle,float(2.0*PI)) + 2.0*PI),float(2.0*PI));
+  webMsg.driveSpeed = max(min(webMsg.driveSpeed, 1), -1);
+  webMsg.rotationSpeed = max(min(webMsg.rotationSpeed, 1), -1);
+
+  lastCommandTime = millis();
+  
+  calculateSpeeds(webMsg.driveAngle, webMsg.driveSpeed, webMsg.rotationSpeed);
+
+  servoMsg.pitch = webMsg.pitch;
+  servoMsg.yaw = webMsg.yaw;
+  servoMsg.height = webMsg.height;
+  if(millis() > lastTeensyCommand + TEENSY_COMMAND_TIME) {
+    lastTeensyCommand = millis();
+    skippedLastTeensyCommand = false;
+    teensySerial.write((const char *) &servoMsg, sizeof(teensyOrionServoMsgType));
+  }
+  else {
+    skippedLastTeensyCommand = true;
+  }
+}
+
+void updateMotorSpeeds() {
+  if(millis() > lastCommandTime + COMMAND_TIMEOUT) {
+    stopAll();
+  }
+  else if(millis() > lastMotorUpdate + MOTOR_UPDATE_TIME) {
+    lastMotorUpdate += MOTOR_UPDATE_TIME;
+    // lowpass filter
+    // current = (1-q)*current+q*target
+    motor1Speed = (1-motorFilterQ)*motor1Speed + motorFilterQ * motor1SpeedTarget;
+    motor2Speed = (1-motorFilterQ)*motor2Speed + motorFilterQ * motor2SpeedTarget;
+    motor3Speed = (1-motorFilterQ)*motor3Speed + motorFilterQ * motor3SpeedTarget;
+    motor4Speed = (1-motorFilterQ)*motor4Speed + motorFilterQ * motor4SpeedTarget;
+
+    motor1.runSpeed(motor1Speed,0);
+    motor2.runSpeed(motor2Speed,0);
+    motor3.runSpeed(motor3Speed,0);
+    motor4.runSpeed(motor4Speed,0);
+  }
 }
