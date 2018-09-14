@@ -7,6 +7,8 @@
 // in 8 directions.
 // directions are (in order): forward, forward right, right, backward right,
 // backward, backward left, left, forward left
+#define MEDIUM_DISTANCE 60
+#define CRITICAL_DISTANCE 20
 #define MAX_DISTANCE 999
 int obstacleDirections[] = {MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE};
 #define DIR_FRONT 0
@@ -409,6 +411,7 @@ void readWebSerial() {
   webMsg.rotationSpeed = max(min(webMsg.rotationSpeed, MAX_ROTATIONSPEED), -1.0*MAX_ROTATIONSPEED);
 
   // TODO do not allow the robot to drive into obstacles
+  avoidObstacles();
 
   // write to orion
   Serial1.write((const char *) &motorMsg, sizeof(teensyOrionMsgType));
@@ -422,4 +425,30 @@ void readWebSerial() {
   servoPitch.write(webMsg.pitch);
   servoYaw.write(webMsg.yaw);
   servoHeight.write(webMsg.height);
+}
+
+void avoidObstacles() {
+  // if distance in the drive direction is close by, drive slow
+  // if distance in the drive direction is critically close by, full stop.
+  
+  // 0 forward
+  // 0.5 pi left
+  // pi backward
+  // 1.5 pi right
+
+  // directions are (in order): forward, forward right, right, backward right,
+  // backward, backward left, left, forward left
+
+  // find which direction (0-7 clockwise) corresponds to the driveAngle(0-2PI counterclockwise)
+  int direction = ceil((2.0f*PI - webMsg.driveAngle) * 4);
+  if(direction > 7) {
+    direction = 0;
+  }
+  
+  if(obstacleDirections[direction] < CRITICAL_DISTANCE) {
+    webMsg.driveSpeed = 0.0f;
+  } elseif(obstacleDirections[direction] < MEDIUM_DISTANCE) {
+    webMsg.driveSpeed /= 2.0f;
+  }
+
 }
