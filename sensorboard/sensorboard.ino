@@ -61,7 +61,7 @@ int bumperPinBL = 28;
 int bumperPinLB = 29;
 int bumperPinLF = 30;
 int bumperPinFL = 31;
-// pin 32 is unused but available
+
 
 int bumperValueFR, bumperValueRF, bumperValueRB, bumperValueBR, bumperValueBL, bumperValueLB, bumperValueLF, bumperValueFL;
 
@@ -85,6 +85,7 @@ Servo servoPitch, servoYaw, servoHeight;
 
 // === Lidar ===
 
+int lidarEnabledPin = 32;
 bool lidarEnabled = false;
 Sweep device(Serial3);
 bool lidarAvailable = false;
@@ -122,6 +123,7 @@ void setup() {
   pinMode(bumperPinLB, INPUT_PULLUP);
   pinMode(bumperPinLF, INPUT_PULLUP);
   pinMode(bumperPinFL, INPUT_PULLUP);
+  pinMode(lidarEnabledPin, INPUT_PULLUP);
 
   servoPitch.attach(servoPitchPin);
   servoYaw.attach(servoYawPin);
@@ -131,7 +133,7 @@ void setup() {
   servoYaw.write(webMsg.yaw);
   servoHeight.write(webMsg.height);
   
-  
+  lidarEnabled = digitalRead(lidarEnabledPin);
   if(lidarEnabled) {
     ledOn();
     setupLidar();
