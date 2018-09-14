@@ -44,10 +44,10 @@ struct webSerialMsgType {
 } webMsg;
 
 struct teensyOrionMsgType {
-  uint16_t confirm = CONFIRM_CORRECT;
-  // float driveAngle = 0.0;
-  // float driveSpeed = 0.0;
-  // float rotationSpeed = 0.0;
+  uint32_t confirm = CONFIRM_CORRECT;
+  float driveAngle = 0.0;
+  float driveSpeed = 0.0;
+  float rotationSpeed = 0.0;
 } motorMsg;
 
 
@@ -149,23 +149,48 @@ void setup() {
   blink(200);
 }
 
-void loop() {
-  readOrionSerial();
-  delay(1000);
-  Serial1.write((const char *) &motorMsg, sizeof(teensyOrionMsgType));
+void randomMotorChange(){
+  float randomChange = random(0, 800);
+  randomChange = (randomChange - 400.0f)/1000.0f;
 
-  // readWebSerial();
+  motorMsg.driveSpeed += randomChange;
+
+  // make sure received values are in correct range
+  motorMsg.driveAngle = fmod((fmod(motorMsg.driveAngle,float(2.0*PI)) + 2.0*PI),float(2.0*PI));
+  motorMsg.driveSpeed = max(min(motorMsg.driveSpeed, 1), -1);
+  motorMsg.rotationSpeed = max(min(motorMsg.rotationSpeed, MAX_ROTATIONSPEED), -1.0*MAX_ROTATIONSPEED);
+}
+
+void loop() {
+  // Serial.print("Sending:");
+  // Serial.print(motorMsg.driveAngle);
+  // Serial.print("  //  ");
+  // Serial.print(motorMsg.driveSpeed);
+  // Serial.print("  //  ");
+  // Serial.print(motorMsg.rotationSpeed);
+
+  // Serial.println();
+
+  readOrionSerial();
+
+  // randomMotorChange();
+  // delay(200);
+  // Serial1.write((const char *) &motorMsg, sizeof(teensyOrionMsgType));
+
+
+
+  readWebSerial();
 
   // reset readings
-  // for(int i = 0; i < 8; i++) {
-  //   obstacleDirections[i] = MAX_DISTANCE;
-  // }
+  for(int i = 0; i < 8; i++) {
+    obstacleDirections[i] = MAX_DISTANCE;
+  }
 
-  // readPingSensors();
-  // readLidar();
-  // readBumpers();
+  readPingSensors();
+  readLidar();
+  readBumpers();
 
-  // blink(5);
+  blink(5);
 }
 
 
@@ -359,6 +384,9 @@ void readOrionSerial() {
   }
   // Serial.flush();
   // we are out of sync with orion!
+  // Serial.print("size of struct = ");
+  // Serial.println(sizeof(teensyOrionMsgType));
+
   Serial.println("<!> Out of sync with Orion! [");
   String input = "";
   while(Serial1.available() > 0) {
@@ -366,9 +394,9 @@ void readOrionSerial() {
   }
   Serial.print(input);
   Serial.println("]");
-  //Serial1.flush();
+  // Serial1.flush();
   blink(10);
-  blink(10);
+  blink(20);
 
   // write to orion
   // Serial1.write((const char *) &motorMsg, sizeof(teensyOrionMsgType));
@@ -412,6 +440,11 @@ void readWebSerial() {
 
   // TODO do not allow the robot to drive into obstacles
   avoidObstacles();
+
+  //copy received values to motormessage
+  motorMsg.driveAngle = webMsg.driveAngle;
+  motorMsg.driveSpeed = webMsg.driveSpeed;
+  motorMsg.rotationSpeed = webMsg.rotationSpeed;
 
   // write to orion
   Serial1.write((const char *) &motorMsg, sizeof(teensyOrionMsgType));
