@@ -1,13 +1,13 @@
 #include "MeOrion.h"
 #include <Wire.h>
 
-MeEncoderNew motor1(0x09, SLOT1); // front right
-MeEncoderNew motor2(0x09, SLOT2); // front left
+MeEncoderNew motor1(0x09, SLOT2); // front right
+MeEncoderNew motor2(0x09, SLOT1); // front left
 MeEncoderNew motor3(0x0a, SLOT1); // back right
 MeEncoderNew motor4(0x0a, SLOT2); // back left
 
 #define MAXSPEED 150
-#define DEFAULTSPEED 1
+#define DEFAULTSPEED 0.8
 #define MAX_ROTATIONSPEED 0.5
 #define COMMAND_TIMEOUT 300 // if no command is received within this amount of ms, stop motors
 #define MOTOR_UPDATE_TIME 20  // minimal ms between motor updates
@@ -18,7 +18,7 @@ float driveAngleTarget = 0.0, driveSpeedTarget = 0.0, rotationSpeedTarget = 0.0;
 float driveAngle = 0.0, driveSpeed = 0.0, rotationSpeed = 0.0;
 
 float driveFilterQ = 0.05; // adjusts how fast the robot will get to its actual target drive speed
-float rotationFilterQ = 0.05; // adjusts how fast the robot will get to its actual target rotation speed
+float rotationFilterQ = 1.0; // adjusts how fast the robot will get to its actual target rotation speed
 boolean motorsEnabled = true;
 unsigned long lastMotorUpdate;
 unsigned long lastCommandTime;
@@ -32,10 +32,10 @@ signed char directionAdjustment[4]={-1,1,-1,1};
 #define CONFIRM_CORRECT 123
 
 struct teensyOrionMsgType {
-  uint16_t confirm = CONFIRM_CORRECT;
-  // float driveAngle = 0.0;
-  // float driveSpeed = 0.0;
-  // float rotationSpeed = 0.0;
+  uint32_t confirm = CONFIRM_CORRECT;
+  float driveAngle = 0.0;
+  float driveSpeed = 0.0;
+  float rotationSpeed = 0.0;
 } motorMsg;
 
 // === ===
@@ -51,7 +51,6 @@ void setup()
   delay(10);
   stopAll();
   lastMotorUpdate = millis();
-  Serial.println("Hej jag är Orion");
 }
 
 
@@ -59,7 +58,7 @@ void setup()
 void loop()
 {
   readTeensySerial();
-  // updateMotorSpeeds();
+  updateMotorSpeeds();
 } // end of loop()
 
 void adjustDirections()
@@ -177,23 +176,35 @@ void readTeensySerial() {
     }
     return;
   }
-  Serial.print("Crrct! vlbl=");
-  Serial.println(Serial.available());
+  // Serial.print("Crrct! vlbl=");
+  // Serial.println(Serial.available());
+  // Serial.println(sizeof(teensyOrionMsgType));
 
-  // // make sure received values are in correct range
-  // motorMsg.driveAngle = fmod((fmod(motorMsg.driveAngle,float(2.0*PI)) + 2.0*PI),float(2.0*PI));
-  // motorMsg.driveSpeed = max(min(motorMsg.driveSpeed, 1), -1);
-  // motorMsg.rotationSpeed = max(min(motorMsg.rotationSpeed, MAX_ROTATIONSPEED), -1.0*MAX_ROTATIONSPEED);
+  // make sure received values are in correct range
+  motorMsg.driveAngle = fmod((fmod(motorMsg.driveAngle,float(2.0*PI)) + 2.0*PI),float(2.0*PI));
+  motorMsg.driveSpeed = max(min(motorMsg.driveSpeed, 1), -1);
+  motorMsg.rotationSpeed = max(min(motorMsg.rotationSpeed, MAX_ROTATIONSPEED), -1.0*MAX_ROTATIONSPEED);
 
-  // lastCommandTime = millis();
+  // Serial.print("Setting motorvalues:");
+  // Serial.print(motorMsg.driveAngle);
+  // Serial.print("  //  ");
+  // Serial.print(motorMsg.driveSpeed);
+  // Serial.print("  //  ");
+  // Serial.print(motorMsg.rotationSpeed);
+  // Serial.println();
+
+  lastCommandTime = millis();
   
-  // driveAngleTarget = motorMsg.driveAngle;
-  // driveSpeedTarget = motorMsg.driveSpeed;
-  // rotationSpeedTarget = motorMsg.rotationSpeed;
+  driveAngleTarget = motorMsg.driveAngle;
+  driveSpeedTarget = motorMsg.driveSpeed;
+  rotationSpeedTarget = motorMsg.rotationSpeed;
+
+
 }
 
 void updateMotorSpeeds() {
   if(millis() > lastCommandTime + COMMAND_TIMEOUT) {
+    // Serial.println("not received command for a while. Stopping all motors");
     stopAll();
   }
   else if(millis() > lastMotorUpdate + MOTOR_UPDATE_TIME) {
@@ -202,8 +213,11 @@ void updateMotorSpeeds() {
     // current = (1-q)*current+q*target
     // driveAngle = (1-driveFilterQ)*driveAngle + driveFilterQ * driveAngleTarget;
     driveAngle = driveAngleTarget;
-    driveSpeed = (1-driveFilterQ)*driveSpeed + driveFilterQ * driveSpeedTarget;
-    rotationSpeed = (1-rotationFilterQ)*rotationSpeed + rotationFilterQ * rotationSpeedTarget;
+    // driveSpeed = (1.0f-driveFilterQ)*driveSpeed + driveFilterQ * driveSpeedTarget;
+    // rotationSpeed = (1.0f-rotationFilterQ)*rotationSpeed + rotationFilterQ * rotationSpeedTarget;
+
+    driveSpeed = driveSpeedTarget;
+    rotationSpeed = rotationSpeedTarget;
 
     // Serial.print("    ");
     // Serial.print(driveAngle);
