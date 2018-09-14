@@ -7,8 +7,8 @@
 // in 8 directions.
 // directions are (in order): forward, forward right, right, backward right,
 // backward, backward left, left, forward left
-#define MEDIUM_DISTANCE 60
-#define CRITICAL_DISTANCE 20
+#define MEDIUM_DISTANCE 120
+#define CRITICAL_DISTANCE 30
 #define MAX_DISTANCE 999
 int obstacleDirections[] = {MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE};
 #define DIR_FRONT 0
@@ -135,12 +135,17 @@ void setup() {
   servoYaw.write(webMsg.yaw);
   servoHeight.write(webMsg.height);
   
-  lidarEnabled = digitalRead(lidarEnabledPin);
+  // connected to HIGH means enabled
+  lidarEnabled = !digitalRead(lidarEnabledPin);
   if(lidarEnabled) {
+    Serial.println("Attempting to start the lidar.");
     ledOn();
     setupLidar();
     ledOff();
     resetLidarValues();
+  }
+  else {
+    Serial.println("Lidar disabled.");
   }
 
   Serial.println("Teensy started ok");
@@ -473,14 +478,22 @@ void avoidObstacles() {
   // backward, backward left, left, forward left
 
   // find which direction (0-7 clockwise) corresponds to the driveAngle(0-2PI counterclockwise)
-  int direction = ceil((2.0f*PI - webMsg.driveAngle) * 4);
+  int direction = round((2.0f - webMsg.driveAngle/PI) * 4.0f);
+  
   if(direction > 7) {
     direction = 0;
   }
   
   if(obstacleDirections[direction] < CRITICAL_DISTANCE) {
+    Serial.print("Direction ");
+    Serial.print(direction);
+    Serial.print(" not allowed.");
     webMsg.driveSpeed = 0.0f;
-  } elseif(obstacleDirections[direction] < MEDIUM_DISTANCE) {
+  } else if(obstacleDirections[direction] < MEDIUM_DISTANCE) {
+    Serial.print("Direction ");
+    Serial.print(direction);
+    Serial.print(" at half speed.");
+    // TODO Is this a good idea? Going half the speed they wanted.
     webMsg.driveSpeed /= 2.0f;
   }
 
