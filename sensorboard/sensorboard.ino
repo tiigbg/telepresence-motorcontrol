@@ -480,6 +480,7 @@ void readWebSerial() {
   //copy clickToDrive parameters
   rotationTarget = webMsg.rotationTarget;
   distanceTarget = webMsg.distanceTarget;
+  calculateClickToDrive();
 
   //copy received values to motormessage
   motorMsg.driveAngle = webMsg.driveAngle;
