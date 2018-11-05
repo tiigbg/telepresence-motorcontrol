@@ -38,6 +38,8 @@ struct webSerialMsgType {
   uint16_t pitch = 90;
   uint16_t yaw = 90;
   uint16_t height = 90;
+  int16_t rotationTarget = 0;
+  uint16_t distanceTarget = 0;
   uint16_t confirm = CONFIRM_CORRECT;
 } webMsg;
 
@@ -100,6 +102,15 @@ uint16_t distances[500];      // in cm
 uint8_t signalStrengths[500]; // 0:255, higher is better
 
 // === ===
+
+// === Click to drive ===
+unsigned long clickToDriveStamp = 0;
+unsigned long rotationDuration = 0;
+unsigned long driveDuration = 0;
+int currentRotation = 0;
+int rotationTarget = 0;
+int currentDistance = 0;
+int distanceTarget = 0;
 
 void setup() {                
   pinMode(ledPin, OUTPUT);
@@ -173,7 +184,7 @@ void loop() {
   // delay(200);
   // Serial1.write((const char *) &motorMsg, sizeof(teensyOrionMsgType));
 
-
+  updateClickToDrive();
 
   readWebSerial();
 
@@ -187,6 +198,36 @@ void loop() {
   readBumpers();
 
   blink(5);
+}
+
+//This 
+float defaultSpeed = 0.8f;
+calculateClickToDrive(){
+  rotationDuration = abs(rotationTarget) * millisPerDegree;
+  driveDuration = int(distanceTarget / defaultSpeed * 1000.0f);
+}
+
+void updateClickToDrive(){
+  unsigned long now = millis();
+  if(now - clickToDriveStamp < rotationDuration){
+    motorMsg.driveAngle = 0.0f;
+    motorMsg.driveSpeed = 0.0f;
+    motorMsg.rotationSpeed = rotationTarget != 0 ? rotationTarget/abs(rotationTarget) : 0;
+
+    Serial1.write((const char *) &motorMsg, sizeof(teensyOrionMsgType));
+
+  }else if(now - clickToDriveStamp < (rotationDuration + driveDuration)){
+    motorMsg.driveAngle = 0.0f;
+    motorMsg.driveSpeed = 1.0f;
+    motorMsg.rotationSpeed = 0.0f;
+
+    Serial1.write((const char *) &motorMsg, sizeof(teensyOrionMsgType));
+  }
+  // if(currentRotation != rotationTarget){
+  //   //rotate
+  // }else if(currentDistance < distanceTarget){
+  //   //drive
+  // }
 }
 
 
@@ -435,6 +476,10 @@ void readWebSerial() {
   webMsg.rotationSpeed = max(min(webMsg.rotationSpeed, MAX_ROTATIONSPEED), -1.0*MAX_ROTATIONSPEED);
 
   // TODO do not allow the robot to drive into obstacles
+
+  //copy clickToDrive parameters
+  rotationTarget = webMsg.rotationTarget;
+  distanceTarget = webMsg.distanceTarget;
 
   //copy received values to motormessage
   motorMsg.driveAngle = webMsg.driveAngle;
