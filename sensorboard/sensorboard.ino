@@ -7,6 +7,8 @@
 // in 8 directions.
 // directions are (in order): forward, forward right, right, backward right,
 // backward, backward left, left, forward left
+#define MEDIUM_DISTANCE 120
+#define CRITICAL_DISTANCE 30
 #define MAX_DISTANCE 999
 int obstacleDirections[] = {MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE, MAX_DISTANCE};
 #define DIR_FRONT 0
@@ -63,7 +65,7 @@ int bumperPinBL = 28;
 int bumperPinLB = 29;
 int bumperPinLF = 30;
 int bumperPinFL = 31;
-// pin 32 is unused but available
+
 
 int bumperValueFR, bumperValueRF, bumperValueRB, bumperValueBR, bumperValueBL, bumperValueLB, bumperValueLF, bumperValueFL;
 
@@ -87,6 +89,7 @@ Servo servoPitch, servoYaw, servoHeight;
 
 // === Lidar ===
 
+int lidarEnabledPin = 32;
 bool lidarEnabled = false;
 Sweep device(Serial3);
 bool lidarAvailable = false;
@@ -133,6 +136,7 @@ void setup() {
   pinMode(bumperPinLB, INPUT_PULLUP);
   pinMode(bumperPinLF, INPUT_PULLUP);
   pinMode(bumperPinFL, INPUT_PULLUP);
+  pinMode(lidarEnabledPin, INPUT_PULLUP);
 
   servoPitch.attach(servoPitchPin);
   servoYaw.attach(servoYawPin);
@@ -142,12 +146,17 @@ void setup() {
   servoYaw.write(webMsg.yaw);
   servoHeight.write(webMsg.height);
   
-  
+  // connected to HIGH means enabled
+  lidarEnabled = !digitalRead(lidarEnabledPin);
   if(lidarEnabled) {
+    Serial.println("Attempting to start the lidar.");
     ledOn();
     setupLidar();
     ledOff();
     resetLidarValues();
+  }
+  else {
+    Serial.println("Lidar disabled.");
   }
 
   Serial.println("Teensy started ok");
@@ -476,6 +485,7 @@ void readWebSerial() {
   webMsg.rotationSpeed = max(min(webMsg.rotationSpeed, MAX_ROTATIONSPEED), -1.0*MAX_ROTATIONSPEED);
 
   // TODO do not allow the robot to drive into obstacles
+  avoidObstacles();
 
   //copy clickToDrive parameters
   rotationTarget = webMsg.rotationTarget;
@@ -499,4 +509,38 @@ void readWebSerial() {
   servoPitch.write(webMsg.pitch);
   servoYaw.write(webMsg.yaw);
   servoHeight.write(webMsg.height);
+}
+
+void avoidObstacles() {
+  // if distance in the drive direction is close by, drive slow
+  // if distance in the drive direction is critically close by, full stop.
+  
+  // 0 forward
+  // 0.5 pi left
+  // pi backward
+  // 1.5 pi right
+
+  // directions are (in order): forward, forward right, right, backward right,
+  // backward, backward left, left, forward left
+
+  // find which direction (0-7 clockwise) corresponds to the driveAngle(0-2PI counterclockwise)
+  int direction = round((2.0f - webMsg.driveAngle/PI) * 4.0f);
+  
+  if(direction > 7) {
+    direction = 0;
+  }
+  
+  if(obstacleDirections[direction] < CRITICAL_DISTANCE) {
+    Serial.print("Direction ");
+    Serial.print(direction);
+    Serial.print(" not allowed.");
+    webMsg.driveSpeed = 0.0f;
+  } else if(obstacleDirections[direction] < MEDIUM_DISTANCE) {
+    Serial.print("Direction ");
+    Serial.print(direction);
+    Serial.print(" at half speed.");
+    // TODO Is this a good idea? Going half the speed they wanted.
+    webMsg.driveSpeed /= 2.0f;
+  }
+
 }
