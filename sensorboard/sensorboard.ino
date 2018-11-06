@@ -38,12 +38,12 @@ struct webSerialMsgType
   float driveAngle = 0.0;
   float driveSpeed = 0.0;
   float rotationSpeed = 0.0;
-  uint16_t pitch = 90;
-  uint16_t yaw = 90;
-  uint16_t height = 90;
-  int16_t rotationTarget = 0;
+  uint32_t pitch = 90;
+  uint32_t yaw = 90;
+  uint32_t height = 90;
+  int32_t rotationTarget = 0;
   float distanceTarget = 0;
-  uint16_t confirm = CONFIRM_CORRECT;
+  uint32_t confirm = CONFIRM_CORRECT;
 } webMsg;
 
 struct teensyOrionMsgType
@@ -218,6 +218,7 @@ float defaultSpeed = 0.8f;
 float millisPerDegree = 25.0f;
 void calculateClickToDrive()
 {
+  clickToDriveStamp = millis();
   rotationDuration = abs(rotationTarget) * millisPerDegree;
   driveDuration = int(distanceTarget / defaultSpeed * 1000.0f);
 
@@ -493,6 +494,7 @@ void readWebSerial()
     Serial.print("<!> Out of sync with webSerial! (Confirm=");
     Serial.print(webMsg.confirm);
     Serial.println(")");
+    Serial.printf("I expect %i bytes\n", sizeof(webSerialMsgType));
     // empty the input buffer from web serial
     // this is a ugly hack which might help to get it synced again?
     // TODO something better, or be sure about if this is ok.
