@@ -33,7 +33,8 @@ bool serialSynced = false;
 #define CONFIRM_CORRECT 123
 #define CONFIRM_WRONG 456
 
-struct webSerialMsgType {
+struct webSerialMsgType
+{
   float driveAngle = 0.0;
   float driveSpeed = 0.0;
   float rotationSpeed = 0.0;
@@ -41,19 +42,17 @@ struct webSerialMsgType {
   uint16_t yaw = 90;
   uint16_t height = 90;
   int16_t rotationTarget = 0;
-  uint16_t distanceTarget = 0;
+  float distanceTarget = 0;
   uint16_t confirm = CONFIRM_CORRECT;
 } webMsg;
 
-struct teensyOrionMsgType {
+struct teensyOrionMsgType
+{
   uint32_t confirm = CONFIRM_CORRECT;
   float driveAngle = 0.0;
   float driveSpeed = 0.0;
   float rotationSpeed = 0.0;
 } motorMsg;
-
-
-
 
 // === Bumpers ===
 
@@ -65,7 +64,6 @@ int bumperPinBL = 28;
 int bumperPinLB = 29;
 int bumperPinLF = 30;
 int bumperPinFL = 31;
-
 
 int bumperValueFR, bumperValueRF, bumperValueRB, bumperValueBR, bumperValueBL, bumperValueLB, bumperValueLF, bumperValueFL;
 
@@ -110,20 +108,21 @@ uint8_t signalStrengths[500]; // 0:255, higher is better
 unsigned long clickToDriveStamp = 0;
 unsigned long rotationDuration = 0;
 unsigned long driveDuration = 0;
-int currentRotation = 0;
+// int currentRotation = 0;
 int rotationTarget = 0;
-int currentDistance = 0;
-int distanceTarget = 0;
+// float currentDistance = 0;
+float distanceTarget = 0;
 
-void setup() {                
+void setup()
+{
   pinMode(ledPin, OUTPUT);
   blink(50);
   blink(300);
   blink(50);
   blink(300);
 
-  Serial.begin(9600); // USB
-  Serial1.begin(9600); // Orion board
+  Serial.begin(9600);    // USB
+  Serial1.begin(9600);   // Orion board
   Serial3.begin(115200); // sweep lidar device
 
   Serial.println("Teensy starting up..");
@@ -145,17 +144,19 @@ void setup() {
   servoPitch.write(webMsg.pitch);
   servoYaw.write(webMsg.yaw);
   servoHeight.write(webMsg.height);
-  
+
   // connected to HIGH means enabled
   lidarEnabled = !digitalRead(lidarEnabledPin);
-  if(lidarEnabled) {
+  if (lidarEnabled)
+  {
     Serial.println("Attempting to start the lidar.");
     ledOn();
     setupLidar();
     ledOff();
     resetLidarValues();
   }
-  else {
+  else
+  {
     Serial.println("Lidar disabled.");
   }
 
@@ -165,19 +166,21 @@ void setup() {
   blink(200);
 }
 
-void randomMotorChange(){
+void randomMotorChange()
+{
   float randomChange = random(0, 800);
-  randomChange = (randomChange - 400.0f)/1000.0f;
+  randomChange = (randomChange - 400.0f) / 1000.0f;
 
   motorMsg.driveSpeed += randomChange;
 
   // make sure received values are in correct range
-  motorMsg.driveAngle = fmod((fmod(motorMsg.driveAngle,float(2.0*PI)) + 2.0*PI),float(2.0*PI));
+  motorMsg.driveAngle = fmod((fmod(motorMsg.driveAngle, float(2.0 * PI)) + 2.0 * PI), float(2.0 * PI));
   motorMsg.driveSpeed = max(min(motorMsg.driveSpeed, 1), -1);
-  motorMsg.rotationSpeed = max(min(motorMsg.rotationSpeed, MAX_ROTATIONSPEED), -1.0*MAX_ROTATIONSPEED);
+  motorMsg.rotationSpeed = max(min(motorMsg.rotationSpeed, MAX_ROTATIONSPEED), -1.0 * MAX_ROTATIONSPEED);
 }
 
-void loop() {
+void loop()
+{
   // Serial.print("Sending:");
   // Serial.print(motorMsg.driveAngle);
   // Serial.print("  //  ");
@@ -198,7 +201,8 @@ void loop() {
   readWebSerial();
 
   // reset readings
-  for(int i = 0; i < 8; i++) {
+  for (int i = 0; i < 8; i++)
+  {
     obstacleDirections[i] = MAX_DISTANCE;
   }
 
@@ -209,28 +213,39 @@ void loop() {
   blink(5);
 }
 
-//This 
+//This
 float defaultSpeed = 0.8f;
-calculateClickToDrive(){
+float millisPerDegree = 25.0f;
+void calculateClickToDrive()
+{
   rotationDuration = abs(rotationTarget) * millisPerDegree;
   driveDuration = int(distanceTarget / defaultSpeed * 1000.0f);
+
+  Serial.print("calculate ctd durations: ");
+  Serial.print(rotationDuration);
+  Serial.print("  //  ");
+  Serial.println(driveDuration);
 }
 
-void updateClickToDrive(){
+// TODO: Find out whether we need to throttle this function to not overload the orion boards serialport.
+void updateClickToDrive()
+{
   unsigned long now = millis();
-  if(now - clickToDriveStamp < rotationDuration){
+  if (now - clickToDriveStamp < rotationDuration)
+  {
     motorMsg.driveAngle = 0.0f;
     motorMsg.driveSpeed = 0.0f;
-    motorMsg.rotationSpeed = rotationTarget != 0 ? rotationTarget/abs(rotationTarget) : 0;
+    motorMsg.rotationSpeed = rotationTarget != 0 ? rotationTarget / abs(rotationTarget) : 0;
 
-    Serial1.write((const char *) &motorMsg, sizeof(teensyOrionMsgType));
-
-  }else if(now - clickToDriveStamp < (rotationDuration + driveDuration)){
+    Serial1.write((const char *)&motorMsg, sizeof(teensyOrionMsgType));
+  }
+  else if (now - clickToDriveStamp < (rotationDuration + driveDuration))
+  {
     motorMsg.driveAngle = 0.0f;
     motorMsg.driveSpeed = 1.0f;
     motorMsg.rotationSpeed = 0.0f;
 
-    Serial1.write((const char *) &motorMsg, sizeof(teensyOrionMsgType));
+    Serial1.write((const char *)&motorMsg, sizeof(teensyOrionMsgType));
   }
   // if(currentRotation != rotationTarget){
   //   //rotate
@@ -239,12 +254,13 @@ void updateClickToDrive(){
   // }
 }
 
-
-void readPingSensors() {
+void readPingSensors()
+{
   // TODO implement
 }
 
-void readBumpers() {
+void readBumpers()
+{
   bumperValueFR = digitalRead(bumperPinFR);
   bumperValueRF = digitalRead(bumperPinRF);
   bumperValueRB = digitalRead(bumperPinRB);
@@ -254,68 +270,72 @@ void readBumpers() {
   bumperValueLF = digitalRead(bumperPinLF);
   bumperValueFL = digitalRead(bumperPinFL);
 
-  if(bumperValueFL || bumperValueFR)
+  if (bumperValueFL || bumperValueFR)
   {
     obstacleDirections[DIR_FRONT] = 0;
   }
-  if(bumperValueFR || bumperValueRF)
+  if (bumperValueFR || bumperValueRF)
   {
     obstacleDirections[DIR_FRONT_RIGHT] = 0;
   }
-  if(bumperValueRF || bumperValueRB)
+  if (bumperValueRF || bumperValueRB)
   {
     obstacleDirections[DIR_RIGHT] = 0;
   }
-  if(bumperValueRB || bumperValueBR)
+  if (bumperValueRB || bumperValueBR)
   {
     obstacleDirections[DIR_BACK_RIGHT] = 0;
   }
-  if(bumperValueBR || bumperValueBL)
+  if (bumperValueBR || bumperValueBL)
   {
     obstacleDirections[DIR_BACK] = 0;
   }
-  if(bumperValueBL || bumperValueLB)
+  if (bumperValueBL || bumperValueLB)
   {
     obstacleDirections[DIR_BACK_LEFT] = 0;
   }
-  if(bumperValueLB || bumperValueLF)
+  if (bumperValueLB || bumperValueLF)
   {
     obstacleDirections[DIR_LEFT] = 0;
   }
-  if(bumperValueLF || bumperValueFL)
+  if (bumperValueLF || bumperValueFL)
   {
     obstacleDirections[DIR_FRONT_LEFT] = 0;
   }
 }
 
-void blink(int delayTime) {
+void blink(int delayTime)
+{
   ledOn();
   delay(delayTime);
   ledOff();
   delay(delayTime);
 }
 
-void ledOn() {
+void ledOn()
+{
   digitalWrite(ledPin, HIGH);
 }
 
-void ledOff() {
+void ledOff()
+{
   digitalWrite(ledPin, LOW);
 }
 
-void readLidar() {
-  if(!lidarAvailable || !lidarEnabled)
+void readLidar()
+{
+  if (!lidarAvailable || !lidarEnabled)
   {
     return;
   }
   //Serial.println("Reading lidar.");
   bool success = device.startScanning();
-  if(!success)
+  if (!success)
   {
     return;
   }
   //Serial.println(success ? "\nSuccessfully initiated scanning..." : "\nFailed to start scanning.");
-  while(scanCount < nrOfScansToMake)
+  while (scanCount < nrOfScansToMake)
   {
     success = false;
     ScanPacket reading = device.getReading(success);
@@ -339,7 +359,7 @@ void readLidar() {
       sampleCount++;
     }
   }
-  
+
   success = device.stopScanning();
   //Serial.println(success ? "\nSuccessfully stopped scanning." : "\nFailed to stop scanning.");
   //printCollectedLidarData();
@@ -347,7 +367,8 @@ void readLidar() {
   resetLidarValues();
 }
 
-void setupLidar() {
+void setupLidar()
+{
   Serial.println("Setting up lidar..");
   // reset the sensor
   device.reset();
@@ -370,14 +391,15 @@ void resetLidarValues()
   sampleCount = 0;
 }
 
-void analizeLidarData() {
+void analizeLidarData()
+{
   int indexOfFirstSyncReading = 0;
   // skip the trailing readings from the first partial scan
   while (!syncValues[indexOfFirstSyncReading])
   {
     indexOfFirstSyncReading++;
   }
-  
+
   for (int i = indexOfFirstSyncReading; i < sampleCount; i++)
   {
     if (syncValues[i])
@@ -390,42 +412,51 @@ void analizeLidarData() {
 
     // values 1 and 0 seem to be noise values, so skip those.
     // TODO Maybe figure out why this happens?
-    if(distances[i] <= 1)
+    if (distances[i] <= 1)
     {
       continue;
     }
 
     // NOTE: angle increments counter-clockwise for the lidar
-    if(angles[i] < 12.5 || angles[i] >= 337.5)
+    if (angles[i] < 12.5 || angles[i] >= 337.5)
     {
       obstacleDirections[DIR_FRONT] = min(distances[i], obstacleDirections[DIR_FRONT]);
-    }else if(angles[i] >= 12.5 && angles[i] < 67.5)
+    }
+    else if (angles[i] >= 12.5 && angles[i] < 67.5)
     {
       obstacleDirections[DIR_FRONT_LEFT] = min(distances[i], obstacleDirections[DIR_FRONT_LEFT]);
-    }else if(angles[i] >= 67.5 && angles[i] < 112.5)
+    }
+    else if (angles[i] >= 67.5 && angles[i] < 112.5)
     {
       obstacleDirections[DIR_LEFT] = min(distances[i], obstacleDirections[DIR_LEFT]);
-    }else if(angles[i] >= 112.5 && angles[i] < 157.5)
+    }
+    else if (angles[i] >= 112.5 && angles[i] < 157.5)
     {
       //obstacleDirections[DIR_BACK_LEFT] = min(distances[i], obstacleDirections[DIR_BACK_LEFT]);
-    }else if(angles[i] >= 157.5 && angles[i] < 202.5)
+    }
+    else if (angles[i] >= 157.5 && angles[i] < 202.5)
     {
       //obstacleDirections[DIR_BACK] = min(distances[i], obstacleDirections[DIR_BACK]);
-    }else if(angles[i] >= 202.5 && angles[i] < 247.5)
+    }
+    else if (angles[i] >= 202.5 && angles[i] < 247.5)
     {
       //obstacleDirections[DIR_BACK_RIGHT] = min(distances[i], obstacleDirections[DIR_BACK_RIGHT]);
-    }else if(angles[i] >= 247.5 && angles[i] < 292.5)
+    }
+    else if (angles[i] >= 247.5 && angles[i] < 292.5)
     {
       obstacleDirections[DIR_RIGHT] = min(distances[i], obstacleDirections[DIR_RIGHT]);
-    }else if(angles[i] >= 292.5 && angles[i] < 337.5)
+    }
+    else if (angles[i] >= 292.5 && angles[i] < 337.5)
     {
       obstacleDirections[DIR_FRONT_RIGHT] = min(distances[i], obstacleDirections[DIR_FRONT_RIGHT]);
     }
   }
 }
 
-void readOrionSerial() {
-  if(Serial1.available() == 0) {
+void readOrionSerial()
+{
+  if (Serial1.available() == 0)
+  {
     return;
   }
   // Serial.flush();
@@ -435,7 +466,8 @@ void readOrionSerial() {
 
   Serial.println("<!> Out of sync with Orion! [");
   String input = "";
-  while(Serial1.available() > 0) {
+  while (Serial1.available() > 0)
+  {
     input += (char)Serial1.read();
   }
   Serial.print(input);
@@ -448,20 +480,24 @@ void readOrionSerial() {
   // Serial1.write((const char *) &motorMsg, sizeof(teensyOrionMsgType));
 }
 
-void readWebSerial() {
-  if(Serial.available() < (int) sizeof(webSerialMsgType)) {
+void readWebSerial()
+{
+  if (Serial.available() < (int)sizeof(webSerialMsgType))
+  {
     return;
   }
-  Serial.readBytes((char *) &webMsg, sizeof(webSerialMsgType));
-  
-  if(webMsg.confirm != CONFIRM_CORRECT) {
+  Serial.readBytes((char *)&webMsg, sizeof(webSerialMsgType));
+
+  if (webMsg.confirm != CONFIRM_CORRECT)
+  {
     Serial.print("<!> Out of sync with webSerial! (Confirm=");
     Serial.print(webMsg.confirm);
     Serial.println(")");
     // empty the input buffer from web serial
     // this is a ugly hack which might help to get it synced again?
     // TODO something better, or be sure about if this is ok.
-    while(Serial.available() > 0) {
+    while (Serial.available() > 0)
+    {
       Serial.read();
     }
     return;
@@ -478,11 +514,16 @@ void readWebSerial() {
   Serial.print(webMsg.yaw);
   Serial.print("  //  ");
   Serial.println(webMsg.height);
+  
+  // Serial.print("  \\  ");
+  // Serial.print(webMsg.rotationTarget);
+  // Serial.print("  //  ");
+  // Serial.println(webMsg.distanceTarget);
 
   // make sure received values are in correct range
-  webMsg.driveAngle = fmod((fmod(webMsg.driveAngle,float(2.0*PI)) + 2.0*PI),float(2.0*PI));
+  webMsg.driveAngle = fmod((fmod(webMsg.driveAngle, float(2.0 * PI)) + 2.0 * PI), float(2.0 * PI));
   webMsg.driveSpeed = max(min(webMsg.driveSpeed, 1), -1);
-  webMsg.rotationSpeed = max(min(webMsg.rotationSpeed, MAX_ROTATIONSPEED), -1.0*MAX_ROTATIONSPEED);
+  webMsg.rotationSpeed = max(min(webMsg.rotationSpeed, MAX_ROTATIONSPEED), -1.0 * MAX_ROTATIONSPEED);
 
   // TODO do not allow the robot to drive into obstacles
   avoidObstacles();
@@ -492,14 +533,21 @@ void readWebSerial() {
   distanceTarget = webMsg.distanceTarget;
   calculateClickToDrive();
 
-  //copy received values to motormessage
-  motorMsg.driveAngle = webMsg.driveAngle;
-  motorMsg.driveSpeed = webMsg.driveSpeed;
-  motorMsg.rotationSpeed = webMsg.rotationSpeed;
+  // Only send a command if it was not meant as a click-to-drive
+  // or if there is also a key command at the same time.
+  if ((rotationTarget == 0 && distanceTarget == 0) 
+  // || (webMsg.driveAngle != 0 && webMsg.driveSpeed != 0 && webMsg.rotationSpeed != 0)
+  )
+  {
+    //copy received values to motormessage
+    motorMsg.driveAngle = webMsg.driveAngle;
+    motorMsg.driveSpeed = webMsg.driveSpeed;
+    motorMsg.rotationSpeed = webMsg.rotationSpeed;
 
-  // write to orion
-  Serial1.write((const char *) &motorMsg, sizeof(teensyOrionMsgType));
-  
+    // write to orion
+    Serial1.write((const char *)&motorMsg, sizeof(teensyOrionMsgType));
+  }
+
   // limit the servo values to [0, 180] range
   webMsg.pitch = min(max(webMsg.pitch, 0), 180);
   webMsg.yaw = min(max(webMsg.yaw, 0), 180);
@@ -511,10 +559,11 @@ void readWebSerial() {
   servoHeight.write(webMsg.height);
 }
 
-void avoidObstacles() {
+void avoidObstacles()
+{
   // if distance in the drive direction is close by, drive slow
   // if distance in the drive direction is critically close by, full stop.
-  
+
   // 0 forward
   // 0.5 pi left
   // pi backward
@@ -524,23 +573,26 @@ void avoidObstacles() {
   // backward, backward left, left, forward left
 
   // find which direction (0-7 clockwise) corresponds to the driveAngle(0-2PI counterclockwise)
-  int direction = round((2.0f - webMsg.driveAngle/PI) * 4.0f);
-  
-  if(direction > 7) {
+  int direction = round((2.0f - webMsg.driveAngle / PI) * 4.0f);
+
+  if (direction > 7)
+  {
     direction = 0;
   }
-  
-  if(obstacleDirections[direction] < CRITICAL_DISTANCE) {
+
+  if (obstacleDirections[direction] < CRITICAL_DISTANCE)
+  {
     Serial.print("Direction ");
     Serial.print(direction);
     Serial.print(" not allowed.");
     webMsg.driveSpeed = 0.0f;
-  } else if(obstacleDirections[direction] < MEDIUM_DISTANCE) {
+  }
+  else if (obstacleDirections[direction] < MEDIUM_DISTANCE)
+  {
     Serial.print("Direction ");
     Serial.print(direction);
     Serial.print(" at half speed.");
     // TODO Is this a good idea? Going half the speed they wanted.
     webMsg.driveSpeed /= 2.0f;
   }
-
 }
