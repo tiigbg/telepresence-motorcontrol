@@ -32,6 +32,7 @@ bool serialSynced = false;
 
 #define CONFIRM_CORRECT 123
 #define CONFIRM_WRONG 456
+#define CONFIRM_SYNC_ERROR 789
 
 struct webSerialMsgType
 {
@@ -49,10 +50,13 @@ struct webSerialMsgType
 struct teensyOrionMsgType
 {
   uint32_t confirm = CONFIRM_CORRECT;
+  uint32_t loopTime = 0;
   float driveAngle = 0.0;
   float driveSpeed = 0.0;
   float rotationSpeed = 0.0;
-} motorMsg;
+  float motorSpeed[4];
+  float motorPosition[4];
+} incomingMotorMsg, outgoingMotorMsg;
 
 // === Bumpers ===
 
@@ -106,10 +110,14 @@ uint8_t signalStrengths[500]; // 0:255, higher is better
 
 // === Click to drive ===
 unsigned long clickToDriveStamp = 0;
-unsigned long rotationDuration = 0;
-unsigned long driveDuration = 0;
+// unsigned long rotationDuration = 0;
+// unsigned long driveDuration = 0;
+
+unsigned long clickToDriveUpdateStamp = 0;
+unsigned long clickToDriveUpdateInterval = 0;
+
 // int currentRotation = 0;
-int rotationTarget = 0;
+float rotationTarget = 0;
 // float currentDistance = 0;
 float distanceTarget = 0;
 
@@ -121,8 +129,8 @@ void setup()
   blink(50);
   blink(300);
 
-  Serial.begin(9600);    // USB
-  Serial1.begin(9600);   // Orion board
+  Serial.begin(115200);  // USB
+  Serial1.begin(115200); // Orion board
   Serial3.begin(115200); // sweep lidar device
 
   Serial.println("Teensy starting up..");
@@ -171,88 +179,216 @@ void randomMotorChange()
   float randomChange = random(0, 800);
   randomChange = (randomChange - 400.0f) / 1000.0f;
 
-  motorMsg.driveSpeed += randomChange;
+  outgoingMotorMsg.driveSpeed += randomChange;
 
   // make sure received values are in correct range
-  motorMsg.driveAngle = fmod((fmod(motorMsg.driveAngle, float(2.0 * PI)) + 2.0 * PI), float(2.0 * PI));
-  motorMsg.driveSpeed = max(min(motorMsg.driveSpeed, 1), -1);
-  motorMsg.rotationSpeed = max(min(motorMsg.rotationSpeed, MAX_ROTATIONSPEED), -1.0 * MAX_ROTATIONSPEED);
+  outgoingMotorMsg.driveAngle = fmod((fmod(outgoingMotorMsg.driveAngle, float(2.0 * PI)) + 2.0 * PI), float(2.0 * PI));
+  outgoingMotorMsg.driveSpeed = max(min(outgoingMotorMsg.driveSpeed, 1), -1);
+  outgoingMotorMsg.rotationSpeed = max(min(outgoingMotorMsg.rotationSpeed, MAX_ROTATIONSPEED), -1.0 * MAX_ROTATIONSPEED);
 }
 
+// int i = 0;
+unsigned long loopStamp = 0;
+unsigned long loopTime = 0;
+unsigned long orionReceiveInterval = 0;
+unsigned long orionReceiveSerialStamp = 0;
 void loop()
 {
-  // Serial.print("Sending:");
-  // Serial.print(motorMsg.driveAngle);
-  // Serial.print("  //  ");
-  // Serial.print(motorMsg.driveSpeed);
-  // Serial.print("  //  ");
-  // Serial.print(motorMsg.rotationSpeed);
+  loopTime = millis() - loopStamp;
+  loopStamp = millis();
+  outgoingMotorMsg.loopTime = loopTime;
+  // Serial1.println(i++);
+  // while (Serial1.available())
+  // {
+  //   Serial.write(Serial1.read());
+  // }
+  // delay(20);
+  // return;
 
-  // Serial.println();
-
+  outgoingMotorMsg.confirm = CONFIRM_CORRECT;
   readOrionSerial();
 
   // randomMotorChange();
   // delay(200);
-  // Serial1.write((const char *) &motorMsg, sizeof(teensyOrionMsgType));
+  // Serial1.write((const char *) &outgoingMotorMsg, sizeof(teensyOrionMsgType));
 
-  updateClickToDrive();
+  unsigned long calculatedInterval = min(100, max(clickToDriveUpdateInterval, orionReceiveInterval + 5));
+  if (millis() - clickToDriveUpdateStamp > calculatedInterval)
+  {
+    clickToDriveUpdateStamp = millis();
+    // Serial.printf("calculatedInterval: %i \n", calculatedInterval);
+    updateClickToDrive();
+  }
 
   readWebSerial();
 
-  // reset readings
-  for (int i = 0; i < 8; i++)
-  {
-    obstacleDirections[i] = MAX_DISTANCE;
-  }
+  // // reset readings
+  // for (int i = 0; i < 8; i++)
+  // {
+  //   obstacleDirections[i] = MAX_DISTANCE;
+  // }
 
-  readPingSensors();
-  readLidar();
-  readBumpers();
+  // readPingSensors();
+  // readLidar();
+  // readBumpers();
 
-  blink(5);
+  // blink(5);
 }
 
 //This
 float defaultSpeed = 0.8f;
-float millisPerDegree = 25.0f;
-void calculateClickToDrive()
-{
-  clickToDriveStamp = millis();
-  rotationDuration = abs(rotationTarget) * millisPerDegree;
-  driveDuration = int(distanceTarget / defaultSpeed * 1000.0f);
+float millisPerDegree = 19.0f;
+float startingRotationDuration = -250.0f;
+float directionChangeDuration = 300.0f;
+float latestRotationDirection = 0;
 
-  Serial.print("calculate ctd durations: ");
-  Serial.print(rotationDuration);
-  Serial.print("  //  ");
-  Serial.println(driveDuration);
+float motorPositionRotationStart[4] = {0.f, 0.f, 0.f, 0.f};
+const float motorPositionRotationmultiplier = 0.70710678118;
+const float rotationCircumference = 194.8f;
+float rotationAngle = 0.f;
+
+float distance = 0.f;
+
+bool CTDIsActive = false;
+bool CTDIsRotating = false;
+
+void calculateRotationAngle()
+{
+  float rotationSum = 0;
+  for (int i = 0; i < 4; i++)
+  {
+    float motorRotationPosition = motorPositionRotationStart[i] - incomingMotorMsg.motorPosition[i];
+    motorRotationPosition *= motorPositionRotationmultiplier;
+    rotationSum += motorRotationPosition;
+  }
+  rotationSum /= 4.0f;
+
+  rotationAngle = -rotationSum / rotationCircumference * 360.0f;
 }
+
+void calculateDistance()
+{
+  float distanceSum = 0.f;
+
+  for (int i = 0; i < 4; i++)
+  {
+    float deltaPos = motorPositionRotationStart[i] - incomingMotorMsg.motorPosition[i];
+    if (i % 2)
+    {
+      deltaPos *= -1.f;
+    }
+    distanceSum += deltaPos;
+  }
+
+  distance = distanceSum / 4.f;
+}
+
+void resetMotorPosition()
+{
+  for (int i = 0; i < 4; i++)
+  {
+    motorPositionRotationStart[i] = incomingMotorMsg.motorPosition[i];
+  }
+}
+
+void initializeClickToDrive()
+{
+  Serial.printf("initializing CTD\n");
+
+  resetMotorPosition();
+
+  CTDIsActive = true;
+  CTDIsRotating = true;
+  calculateRotationAngle();
+  calculateDistance();
+
+  Serial.printf("rotationTarget: %f \t rotationAngle: %f \n", rotationTarget, rotationAngle);
+  Serial.printf("distanceTarget: %f \t distance: %f \n", distanceTarget, distance);
+}
+
+// void calculateClickToDrive()
+// {
+//   clickToDriveStamp = millis();
+//   float newRotationDirection = rotationTarget / abs(rotationTarget);
+//   // Serial.printf("latestRotationDirection: %f \n", latestRotationDirection);
+//   // Serial.printf("newRotationDirection: %f \n", newRotationDirection);
+//   float rotationTimeAdjustment = abs(newRotationDirection - latestRotationDirection);
+//   // Serial.printf("rotationTimeAdjustment: %f \n", rotationTimeAdjustment);
+
+//   rotationDuration = rotationTimeAdjustment * directionChangeDuration + startingRotationDuration + abs(rotationTarget) * millisPerDegree;
+//   rotationDuration = max(0, rotationDuration);
+//   driveDuration = int(distanceTarget / defaultSpeed * 1000.0f);
+
+//   Serial.print("calculate ctd durations: ");
+//   Serial.print(rotationDuration);
+//   Serial.print("  //  ");
+//   Serial.println(driveDuration);
+// }
 
 // TODO: Find out whether we need to throttle this function to not overload the orion boards serialport.
 void updateClickToDrive()
 {
-  unsigned long now = millis();
-  if (now - clickToDriveStamp < rotationDuration)
+  if (!CTDIsActive)
   {
-    motorMsg.driveAngle = 0.0f;
-    motorMsg.driveSpeed = 0.0f;
-    motorMsg.rotationSpeed = rotationTarget != 0 ? rotationTarget / abs(rotationTarget) : 0;
-
-    Serial1.write((const char *)&motorMsg, sizeof(teensyOrionMsgType));
+    return;
   }
-  else if (now - clickToDriveStamp < (rotationDuration + driveDuration))
-  {
-    motorMsg.driveAngle = 0.0f;
-    motorMsg.driveSpeed = 1.0f;
-    motorMsg.rotationSpeed = 0.0f;
+  Serial.printf("rotationAngle: %f, \t distance: %f \n", rotationAngle, distance);
 
-    Serial1.write((const char *)&motorMsg, sizeof(teensyOrionMsgType));
-  }
-  // if(currentRotation != rotationTarget){
-  //   //rotate
-  // }else if(currentDistance < distanceTarget){
-  //   //drive
+  // unsigned long now = millis();
+  // if (now - clickToDriveStamp < rotationDuration)
+  // {
+  //   outgoingMotorMsg.driveAngle = 0.0f;
+  //   outgoingMotorMsg.driveSpeed = 0.0f;
+  //   outgoingMotorMsg.rotationSpeed = rotationTarget != 0 ? rotationTarget / abs(rotationTarget) : 0;
+
+  //   Serial1.write((const char *)&outgoingMotorMsg, sizeof(teensyOrionMsgType));
   // }
+  // else if (now - clickToDriveStamp < (rotationDuration + driveDuration))
+  // {
+  //   outgoingMotorMsg.driveAngle = 0.0f;
+  //   outgoingMotorMsg.driveSpeed = 1.0f;
+  //   outgoingMotorMsg.rotationSpeed = 0.0f;
+
+  //   Serial1.write((const char *)&outgoingMotorMsg, sizeof(teensyOrionMsgType));
+  // }
+
+  // Serial.printf("updating CTD \n");
+  // Serial.printf("abs(%f) - abs(%f) = %f \n", rotationTarget, rotationAngle, (abs(rotationTarget) - abs(rotationAngle)));
+  float angleUntilDone = abs(rotationTarget) - abs(rotationAngle);
+  if (angleUntilDone > 0.5f)
+  {
+    Serial.printf("sending rotate command, target: %f, currentAngle: %f \n", rotationTarget, rotationAngle);
+    float dynamicRotSpeed = rotationTarget / abs(rotationTarget);
+    if (angleUntilDone < 20.0f)
+    {
+      Serial.printf("slower in the end \n");
+      dynamicRotSpeed *= 0.5;
+    }
+    outgoingMotorMsg.driveAngle = 0.0f;
+    outgoingMotorMsg.driveSpeed = 0.0f;
+    outgoingMotorMsg.rotationSpeed = rotationTarget != 0.f ? dynamicRotSpeed : 0;
+
+    Serial1.write((const char *)&outgoingMotorMsg, sizeof(teensyOrionMsgType));
+  }
+  else if (distance < distanceTarget)
+  {
+    Serial.printf("sending forward command, target: %f, currentDistance: %f \n", distanceTarget, distance);
+    if (CTDIsRotating)
+    {
+      CTDIsRotating = false;
+      resetMotorPosition();
+    }
+    outgoingMotorMsg.driveAngle = 0.0f;
+    outgoingMotorMsg.driveSpeed = 1.0f;
+    outgoingMotorMsg.rotationSpeed = 0.0f;
+
+    Serial1.write((const char *)&outgoingMotorMsg, sizeof(teensyOrionMsgType));
+  }
+  else
+  {
+    CTDIsActive = false;
+    Serial.printf("CTD reached target\n");
+  }
 }
 
 void readPingSensors()
@@ -456,29 +592,51 @@ void analizeLidarData()
 
 void readOrionSerial()
 {
-  if (Serial1.available() == 0)
+  if (Serial1.available() < sizeof(teensyOrionMsgType))
   {
     return;
   }
-  // Serial.flush();
-  // we are out of sync with orion!
-  // Serial.print("size of struct = ");
-  // Serial.println(sizeof(teensyOrionMsgType));
 
-  Serial.println("<!> Out of sync with Orion! [");
-  String input = "";
-  while (Serial1.available() > 0)
+  Serial1.readBytes((char *)&incomingMotorMsg, sizeof(teensyOrionMsgType));
+
+  orionReceiveInterval = millis() - orionReceiveSerialStamp;
+  orionReceiveSerialStamp = millis();
+
+  // Serial.printf("orionReceiveInterval: %i \n", orionReceiveInterval);
+  // Serial.printf("orion loopTime: %i \n", incomingMotorMsg.loopTime);
+
+  if (incomingMotorMsg.confirm == CONFIRM_SYNC_ERROR)
   {
-    input += (char)Serial1.read();
+    Serial.printf("<!Teensy> Orion says it had sync error \n");
   }
-  Serial.print(input);
-  Serial.println("]");
-  // Serial1.flush();
-  blink(10);
-  blink(20);
+  else if (incomingMotorMsg.confirm != CONFIRM_CORRECT)
+  {
+    Serial.print("<!Teensy> Orion out of sync Confirm=(");
+    Serial.print(incomingMotorMsg.confirm);
+    Serial.println(")");
+    Serial.printf("expecting %i bytes in message \n", sizeof(teensyOrionMsgType));
 
-  // write to orion
-  // Serial1.write((const char *) &motorMsg, sizeof(teensyOrionMsgType));
+    int flushDuration = min(25, orionReceiveInterval / 2);
+    delay(flushDuration);
+    // empty the incoming serial buffer
+    while (Serial1.available() > 0)
+    {
+      Serial1.read();
+    }
+    // delay(5);
+    return;
+  }
+
+  calculateRotationAngle();
+  calculateDistance();
+  // Serial.printf("loopTime: %i, \t", loopTime);
+  // Serial.printf("rotationAngle: %f, \t distance: %f \n", rotationAngle, distance);
+
+  // Serial.printf("motorStats received: \n");
+  // for(int i = 0; i < 4; i++)
+  // {
+  //   Serial.printf("motor %i, speed: %f \t position: %f \n", i, incomingMotorMsg.motorSpeed[i], incomingMotorMsg.motorPosition[i]);
+  // }
 }
 
 void readWebSerial()
@@ -516,7 +674,7 @@ void readWebSerial()
   Serial.print(webMsg.yaw);
   Serial.print("  //  ");
   Serial.println(webMsg.height);
-  
+
   // Serial.print("  \\  ");
   // Serial.print(webMsg.rotationTarget);
   // Serial.print("  //  ");
@@ -528,27 +686,61 @@ void readWebSerial()
   webMsg.rotationSpeed = max(min(webMsg.rotationSpeed, MAX_ROTATIONSPEED), -1.0 * MAX_ROTATIONSPEED);
 
   // TODO do not allow the robot to drive into obstacles
-  avoidObstacles();
+  // avoidObstacles();
 
   //copy clickToDrive parameters
-  rotationTarget = webMsg.rotationTarget;
-  distanceTarget = webMsg.distanceTarget;
-  calculateClickToDrive();
+  rotationTarget = float(webMsg.rotationTarget);
+  distanceTarget = 100.0 * min(webMsg.distanceTarget, 5.0);
 
+  // TODO: implement this in videoclick logic client side instead!
+  // if (distanceTarget < 0.5f)
+  // {
+  //   distanceTarget = 0.0f;
+  // }
+
+  if (rotationTarget != 0.f || distanceTarget != 0.f)
+  {
+    // calculateClickToDrive();
+    initializeClickToDrive();
+  }
+  else
   // Only send a command if it was not meant as a click-to-drive
   // or if there is also a key command at the same time.
-  if ((rotationTarget == 0 && distanceTarget == 0) 
-  // || (webMsg.driveAngle != 0 && webMsg.driveSpeed != 0 && webMsg.rotationSpeed != 0)
-  )
+  // if ((rotationTarget == 0 && distanceTarget == 0)
+  // // || (webMsg.driveAngle != 0 && webMsg.driveSpeed != 0 && webMsg.rotationSpeed != 0)
+  // )
   {
+    CTDIsActive = false;
     //copy received values to motormessage
-    motorMsg.driveAngle = webMsg.driveAngle;
-    motorMsg.driveSpeed = webMsg.driveSpeed;
-    motorMsg.rotationSpeed = webMsg.rotationSpeed;
+    outgoingMotorMsg.driveAngle = webMsg.driveAngle;
+    outgoingMotorMsg.driveSpeed = webMsg.driveSpeed;
+    outgoingMotorMsg.rotationSpeed = webMsg.rotationSpeed;
 
     // write to orion
-    Serial1.write((const char *)&motorMsg, sizeof(teensyOrionMsgType));
+    Serial1.write((const char *)&outgoingMotorMsg, sizeof(teensyOrionMsgType));
   }
+
+  //Save in which direction we are turning
+  //We use this info for our ugly hack to adjust for the PID taking longer time to change direction
+  // if (webMsg.driveSpeed != 0)
+  // {
+  //   latestRotationDirection = 0;
+  //   latestRotationDirection += webMsg.rotationSpeed;
+  // }
+  // else if (webMsg.rotationSpeed)
+  // {
+  //   //scale to 1
+  //   latestRotationDirection = 2 * webMsg.rotationSpeed;
+  // }
+  // else if (distanceTarget != 0)
+  // {
+  //   latestRotationDirection = 0;
+  // }
+  // else if (rotationTarget != 0)
+  // {
+  //   latestRotationDirection = (rotationTarget / abs(rotationTarget));
+  // }
+  // Serial.printf("latestRotationDirection: %f \n", latestRotationDirection);
 
   // limit the servo values to [0, 180] range
   webMsg.pitch = min(max(webMsg.pitch, 0), 180);
