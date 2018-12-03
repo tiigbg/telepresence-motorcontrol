@@ -114,7 +114,7 @@ unsigned long clickToDriveStamp = 0;
 // unsigned long driveDuration = 0;
 
 unsigned long clickToDriveUpdateStamp = 0;
-unsigned long clickToDriveUpdateInterval = 0;
+unsigned long clickToDriveUpdateInterval = 45;
 
 // int currentRotation = 0;
 float rotationTarget = 0;
@@ -243,8 +243,9 @@ float directionChangeDuration = 300.0f;
 float latestRotationDirection = 0;
 
 float motorPositionRotationStart[4] = {0.f, 0.f, 0.f, 0.f};
-const float motorPositionRotationmultiplier = 0.70710678118;
-const float rotationCircumference = 194.8f;
+const float motorPositionRotationmultiplier = 0.674f;// 0.70710678118f;
+const float rotationCircumference = 180.f;
+const float motorPositionRotationAngleOffset = -34.f;
 float rotationAngle = 0.f;
 
 float distance = 0.f;
@@ -258,10 +259,12 @@ void calculateRotationAngle()
   for (int i = 0; i < 4; i++)
   {
     float motorRotationPosition = motorPositionRotationStart[i] - incomingMotorMsg.motorPosition[i];
-    motorRotationPosition *= motorPositionRotationmultiplier;
+    Serial.printf("rotationDistance (cm) %i: %f \n", i, motorRotationPosition);
+    // motorRotationPosition *= motorPositionRotationmultiplier;
     rotationSum += motorRotationPosition;
   }
   rotationSum /= 4.0f;
+  rotationSum *= motorPositionRotationmultiplier;
 
   rotationAngle = -rotationSum / rotationCircumference * 360.0f;
 }
@@ -289,6 +292,10 @@ void resetMotorPosition()
   {
     motorPositionRotationStart[i] = incomingMotorMsg.motorPosition[i];
   }
+
+  calculateRotationAngle();
+  calculateDistance();
+  Serial.printf("resetting motorPositions, rotationAngle: %f, \t distance: %f \n", rotationAngle, distance);
 }
 
 void initializeClickToDrive()
@@ -332,7 +339,7 @@ void updateClickToDrive()
   {
     return;
   }
-  Serial.printf("rotationAngle: %f, \t distance: %f \n", rotationAngle, distance);
+  // Serial.printf("rotationAngle: %f, \t distance: %f \n", rotationAngle, distance);
 
   // unsigned long now = millis();
   // if (now - clickToDriveStamp < rotationDuration)
@@ -354,15 +361,15 @@ void updateClickToDrive()
 
   // Serial.printf("updating CTD \n");
   // Serial.printf("abs(%f) - abs(%f) = %f \n", rotationTarget, rotationAngle, (abs(rotationTarget) - abs(rotationAngle)));
-  float angleUntilDone = abs(rotationTarget) - abs(rotationAngle);
-  if (angleUntilDone > 0.5f)
+  float angleUntilDone = abs(rotationTarget) - abs(rotationAngle) + motorPositionRotationAngleOffset;
+  if(CTDIsRotating && angleUntilDone > 1.5f)
   {
-    Serial.printf("sending rotate command, target: %f, currentAngle: %f \n", rotationTarget, rotationAngle);
+    // Serial.printf("sending rotate command, target: %f, currentAngle: %f \n", rotationTarget, rotationAngle);
     float dynamicRotSpeed = rotationTarget / abs(rotationTarget);
     if (angleUntilDone < 20.0f)
     {
       Serial.printf("slower in the end \n");
-      dynamicRotSpeed *= 0.5;
+      dynamicRotSpeed *= 0.6;
     }
     outgoingMotorMsg.driveAngle = 0.0f;
     outgoingMotorMsg.driveSpeed = 0.0f;
@@ -370,24 +377,29 @@ void updateClickToDrive()
 
     Serial1.write((const char *)&outgoingMotorMsg, sizeof(teensyOrionMsgType));
   }
-  else if (distance < distanceTarget)
+  else
   {
-    Serial.printf("sending forward command, target: %f, currentDistance: %f \n", distanceTarget, distance);
     if (CTDIsRotating)
     {
       CTDIsRotating = false;
       resetMotorPosition();
     }
-    outgoingMotorMsg.driveAngle = 0.0f;
-    outgoingMotorMsg.driveSpeed = 1.0f;
-    outgoingMotorMsg.rotationSpeed = 0.0f;
 
-    Serial1.write((const char *)&outgoingMotorMsg, sizeof(teensyOrionMsgType));
-  }
-  else
-  {
-    CTDIsActive = false;
-    Serial.printf("CTD reached target\n");
+    if (distance < distanceTarget)
+    {
+      // Serial.printf("sending forward command, target: %f, currentDistance: %f \n", distanceTarget, distance);
+
+      outgoingMotorMsg.driveAngle = 0.0f;
+      outgoingMotorMsg.driveSpeed = 1.0f;
+      outgoingMotorMsg.rotationSpeed = 0.0f;
+
+      Serial1.write((const char *)&outgoingMotorMsg, sizeof(teensyOrionMsgType));
+    }
+    else
+    {
+      CTDIsActive = false;
+      // Serial.printf("CTD reached target\n");
+    }
   }
 }
 
